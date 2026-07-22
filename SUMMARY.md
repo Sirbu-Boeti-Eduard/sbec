@@ -7,7 +7,6 @@
 - [CTF Writeups](ctf-writeups/README.md)
   - [Blue Team Labs Online](ctf-writeups/btlo/README.md)
     - [BTLO: SOC Alpha 1](ctf-writeups/btlo/soc-alpha-1.md)
-    - [BTLO: Enter The Dragon 1](ctf-writeups/btlo/enter-the-dragon-1.md)
     - [BTLO: Eradication](ctf-writeups/btlo/eradication.md)
     - [BTLO: Phishy V1](ctf-writeups/btlo/phishy-v1.md)
     - [BTLO Basilisk 1](ctf-writeups/btlo/basilisk-1.md)
