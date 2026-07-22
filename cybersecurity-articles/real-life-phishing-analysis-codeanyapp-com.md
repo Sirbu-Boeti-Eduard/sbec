@@ -166,9 +166,9 @@ ExifTool reported filesystem metadata stored in the `._index.html` AppleDouble s
 
 *Figure 14. ExifTool metadata from the `._index.html` AppleDouble sidecar.*
 
-The sidecar displayed a modification timestamp of November 14, 2023 at 12:21:44 +02:00 and an access timestamp of January 15, 2024 at 05:40:22 +02:00.
+The sidecar displayed a modification timestamp of November 14, 2023 at 12:21:44 +02:00.
 
-**Attribution limitation.** These are filesystem timestamps from the extracted sidecar. They can be copied, altered, or affected by packaging and extraction, so they are timeline leads rather than proof of when the operator created or used the kit.
+**Attribution limitation.** This is filesystem metadata from the extracted sidecar. It may have been preserved from the archive or affected by packaging and extraction, so it is a timeline lead rather than proof of when the operator created or used the kit.
 
 The Zeos directory contained a group of anti-analysis scripts.
 
