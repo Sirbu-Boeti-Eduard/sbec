@@ -2,7 +2,7 @@
 
 - [Home](README.md)
 - [Cybersecurity Articles](cybersecurity-articles/README.md)
-  - [Real Life Phishing Analysis (codeanyapp.com)](cybersecurity-articles/real-life-phishing-analysis-codeanyapp-com.md)
+  - [Real-Life Phishing Analysis: Romanian Post and SwissPass](cybersecurity-articles/real-life-phishing-analysis-codeanyapp-com.md)
 - [CTF Writeups](ctf-writeups/README.md)
   - [Blue Team Labs Online](ctf-writeups/btlo/README.md)
     - [BTLO: SOC Alpha 1](ctf-writeups/btlo/soc-alpha-1.md)
