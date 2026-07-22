@@ -1,7 +1,6 @@
 # Summary
 
 - [Home](README.md)
-- [About](about.md)
 - [Cybersecurity Articles](cybersecurity-articles/README.md)
   - [Real Life Phishing Analysis (codeanyapp.com)](cybersecurity-articles/real-life-phishing-analysis-codeanyapp-com.md)
 - [CTF Writeups](ctf-writeups/README.md)
