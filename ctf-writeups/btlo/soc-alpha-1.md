@@ -1,187 +1,287 @@
+---
+description: An alert-driven SOC investigation using PowerShell and Sysmon telemetry to trace a suspicious download and three Windows persistence mechanisms.
+---
+
 # BTLO: SOC Alpha 1
 
 <!-- Original publication date: 2023-12-30 -->
 
 ## Introduction
 
-![](../../assets/images/btlo-soc-alpha-1-001.png)
+![SOC Alpha 1 investigation cover image](../../assets/images/btlo-soc-alpha-1-001.png)
 
-Hello, my name is Eduard Boeti and in this write-up I am going to tackle “SOC Alpha 1” on Blue Team Labs Online.
+Hello, my name is Sirbu-Boeti Eduard-Cristian and in this write-up I am going to cover “SOC Alpha 1” on Blue Team Labs Online.
 
-[**BTLO**<br><span>blueteamlabs.online</span>](https://blueteamlabs.online/home/investigation/soc-alpha-1-2ba4c4a550 "https://blueteamlabs.online/home/investigation/soc-alpha-1-2ba4c4a550")
+[**Blue Team Labs Online \| SOC Alpha 1**<br><span>blueteamlabs.online</span>](https://blueteamlabs.online/home/investigation/soc-alpha-1-2ba4c4a550 "https://blueteamlabs.online/home/investigation/soc-alpha-1-2ba4c4a550")
 
-## Question 1: Alert 1 (1/2) — What is the cmdlet used for downloading?
+| Investigation detail | Description |
+| --- | --- |
+| Platform | Blue Team Labs Online |
+| Investigation | SOC Alpha 1 |
+| Primary evidence | Windows PowerShell and Sysmon events indexed in Elastic |
+| Focus areas | Alert scoping, PowerShell download activity, file creation, Registry persistence, and scheduled tasks |
+| Tools demonstrated | Kibana Discover, Elastic index patterns, Windows event logs, and Sysmon telemetry |
 
-First of all, what is a cmdlet? According to [Microsoft](https://learn.microsoft.com/en-us/powershell/scripting/developer/cmdlet/cmdlet-overview?view=powershell-7.4), “A cmdlet is a lightweight command that is used in the PowerShell environment”.
+> **Lab-safety note:** Keep the investigation VM isolated and treat executable paths, scripts, and network indicators as untrusted. Preserve suspicious URLs in a defanged form, such as `hxxps[://]example[.]com`, and do not retrieve or execute a payload outside an authorized lab.
 
-After the BTLO VM has started, we can find on the desktop a file named “README.txt”. Inside of it we can find the information related to the whole investigation.
+## Investigation approach
 
-![](../../assets/images/btlo-soc-alpha-1-002.png)
+Each alert begins with three scoping details from `README.txt`: a time window, a data source or index pattern, and a detection rule. I use those details to reduce the dataset before interpreting individual events.
 
-For now, we are only interested in Question 1/Alert 1. As we can see Alert 1 could have been caused by one of the following rules:
+1. Record the alert’s stated time frame and use the correct time zone.
+2. Select the index that contains the expected telemetry.
+3. Apply the supplied rule as a starting filter, then inspect the matching event fields.
+4. Identify the process, command line, file, Registry object, or scheduled task represented by the event.
+5. Pivot into related events to connect execution with the resulting persistence artifact.
+6. Keep observed facts separate from conclusions that still require corroboration.
 
-- .DownloadFile: According to [Microsoft](https://learn.microsoft.com/en-us/dotnet/api/system.net.webclient.downloadfile?view=net-8.0), this is the “WebClient.DownloadFile” method used in .NET, so there is no relation to PowerShell.
-- .DownloadString: Once again, according to [Microsoft](https://learn.microsoft.com/en-us/dotnet/api/system.net.webclient.downloadstring?view=net-8.0), this is the “WebClient.DownloadString” method used in .NET, so once again there is no relation to PowerShell.
-- Invoke-WebRequest: Nice! According to [Microsoft](https://learn.microsoft.com/en-us/powershell/module/microsoft.powershell.utility/invoke-webrequest?view=powershell-7.4), this is a PowerShell cmdlet.
+Throughout the investigation, the central questions are: **What behavior triggered the alert? Which event field contains the evidence? What related telemetry would confirm the sequence?**
 
-*Note:* [*What is .NET*](https://learn.microsoft.com/en-us/dotnet/core/introduction)<em>?</em>
+| Alert | Primary telemetry | Investigative objective |
+| --- | --- | --- |
+| Alert 1 | PowerShell events | Identify the download mechanism and source URL |
+| Alert 2 | Sysmon file-creation events | Identify a payload placed in a Startup folder |
+| Alert 3 | Sysmon Registry events | Identify a Run-key persistence entry and its executable |
+| Alert 4 | Sysmon process events | Recover the scheduled-task name and target program |
 
-## Question 2: Alert 1 (2/2) — What is the full URL from which the file is downloaded?
+## Phase 1: Trace the PowerShell download
 
-For this next question, we should open the FireFox Browser and access <http://localhost:5601/app/home#/>
+### Question 1: Alert 1 (1/2) — What is the cmdlet used for downloading?
 
-Once there, we should be greeted with the ELK Stack dashboard.
+The first alert targets download behavior. Before searching the logs, it is important to distinguish a PowerShell cmdlet from a method exposed by the .NET runtime. A [cmdlet](https://learn.microsoft.com/en-us/powershell/scripting/developer/cmdlet/cmdlet-overview?view=powershell-7.4) is a command implemented specifically for the PowerShell environment.
 
-![](../../assets/images/btlo-soc-alpha-1-003.png)
+The investigation begins with `README.txt` on the BTLO VM desktop. This file defines the alerts, candidate detection logic, data sources, and time windows that will guide the search.
 
-*Note: What is* [*ELK Stack*](https://aws.amazon.com/what-is/elk-stack/)<em>?</em>
+![README file listing the SOC Alpha 1 alerts, sources, rules, and time frames](../../assets/images/btlo-soc-alpha-1-002.png)
 
-*Note: If there is no dashboard present yet, try the following commands in bash to start it:*
+Alert 1 lists three candidate indicators:
 
-- *sudo systemctl start elasticsearch*
-- *sudo systemctl start kibana*
-- *sudo systemctl start logstash*
+- [`WebClient.DownloadFile`](https://learn.microsoft.com/en-us/dotnet/api/system.net.webclient.downloadfile?view=net-8.0) downloads a resource to a local file.
+- [`WebClient.DownloadString`](https://learn.microsoft.com/en-us/dotnet/api/system.net.webclient.downloadstring?view=net-8.0) retrieves a resource as a string.
+- [`Invoke-WebRequest`](https://learn.microsoft.com/en-us/powershell/module/microsoft.powershell.utility/invoke-webrequest?view=powershell-7.4) is a PowerShell cmdlet for sending HTTP and HTTPS requests.
 
-In order to access the logs generated by Alert 1 we should go to the 3 Black Lines \> Analytics \> Overview. Next go to Discover. Initially it’s going to look like this:
+The first two are [.NET](https://learn.microsoft.com/en-us/dotnet/core/introduction) methods, but PowerShell can still invoke them through a `System.Net.WebClient` object. `Invoke-WebRequest`, by contrast, is itself a cmdlet. The decisive evidence is therefore not the rule label but the command or script-block content recorded in the matching event.
 
-![](../../assets/images/btlo-soc-alpha-1-004.png)
+> **Analyst mindset:** A rule name is a lead, not the conclusion. First identify which part of the rule matched, then read the surrounding command in its original event.
 
-That’s because by default Elastic only displays logs in the last 15 minutes and this investigation first appeared in 2021, and by the time I’m writing this it’s almost 2024.
+### Question 2: Alert 1 (2/2) — What is the full URL from which the file is downloaded?
 
-First of all we should look in our “README.txt” file to see the TimeFrame and Source of Alert 1.
+The next objective is to recover the source URL from the PowerShell telemetry. Inside the lab VM, Kibana is available at <http://localhost:5601/app/home#/>.
 
-![](../../assets/images/btlo-soc-alpha-1-005.png)
+This interface provides access to the [Elastic Stack](https://www.elastic.co/elastic-stack) data collected for the investigation.
 
-If we look closely, we should see:
+![Elastic and Kibana dashboard inside the BTLO investigation VM](../../assets/images/btlo-soc-alpha-1-003.png)
+
+If the dashboard is unavailable in the VM, start the three lab services:
+
+```bash
+sudo systemctl start elasticsearch
+sudo systemctl start kibana
+sudo systemctl start logstash
+```
+
+Open **Analytics → Discover** to examine the indexed events. The initial view may show no results:
+
+![Kibana Discover showing no results under the default recent time range](../../assets/images/btlo-soc-alpha-1-004.png)
+
+The empty result does not mean the evidence is absent. Kibana initially uses a recent relative time range, whereas this investigation’s events were generated in April 2021. The first analytical step is therefore to replace the relative range with the alert’s absolute time window.
+
+The Alert 1 entry in `README.txt` supplies both the temporal scope and the relevant data source:
+
+![README excerpt showing Alert 1 source, rule, and time frame](../../assets/images/btlo-soc-alpha-1-005.png)
 
 - TimeFrame: 14–4–2021 10:00 to 14–4–2021 11:00
 - Source: winevent-powershell /sysmon
 
-Now that we know when and where to look, we get the following:
+After applying the one-hour window, events become visible in Discover:
 
-![](../../assets/images/btlo-soc-alpha-1-006.png)
+![Kibana Discover results after applying the Alert 1 time window](../../assets/images/btlo-soc-alpha-1-006.png)
 
-Now, as we can see we have a lot of logs in this time frame. The final step we should do to make this easier for us to use is to simply search the logs by the given rule: *“\*.DownloadFile\*” OR “\*.DownloadString\*” OR “\*Invoke-WebRequest\*”.*
+The time filter reduces the search space, but the result set is still too broad to answer the alert. Apply the supplied detection terms to the PowerShell dataset:
 
-![](../../assets/images/btlo-soc-alpha-1-007.png)
+```text
+"*.DownloadFile*" OR "*.DownloadString*" OR "*Invoke-WebRequest*"
+```
 
-*Note: Change the “Index pattern” to “winevent-powershell”, because if we use “sysmon” nothing will be displayed.*
+![Kibana query filtering PowerShell events for download-related commands](../../assets/images/btlo-soc-alpha-1-007.png)
 
-Only 2 entries this time. Let’s start looking for the answer to Question 2.
+The index pattern must be `winevent-powershell`. The query is designed to match PowerShell content, so running it against the `sysmon` index will not return the expected events.
 
-![](../../assets/images/btlo-soc-alpha-1-008.png)
+The filter narrows the dataset to two events. At this point, the investigation moves from search to interpretation: inspect the command content and identify the values passed to the web-request parameters.
 
-If we look closely, we can see the following URL appearing in both of the logs: \
+![PowerShell event containing Invoke-WebRequest, the source URI, and output path](../../assets/images/btlo-soc-alpha-1-008.png)
+
+Both events contain the following defanged URL: \
 hxxps\[://\]raw\[.\]githubusercontent\[.\]com/nerrorsec/SBT-SOC/main/MSWorker.exe
 
-By the looks of it, the 2 logs are identical.
+The command uses [`Invoke-WebRequest`](https://learn.microsoft.com/en-us/powershell/module/microsoft.powershell.utility/invoke-webrequest?view=powershell-7.4#parameters). Its `-Uri` value identifies the remote source, while `-OutFile` records where PowerShell attempted to write the response. A complete timeline would also capture the event timestamp, user, host, process identifier, destination path, and any later file-creation or process-execution event.
 
-If we look at the Microsoft documentation for [Invoke-WebRequest](https://learn.microsoft.com/en-us/powershell/module/microsoft.powershell.utility/invoke-webrequest?view=powershell-7.4#parameters), specifically at the parameters used, we can deduce that there was something downloaded from that URL using the parameter: “-Uri”
+The two events appear to contain the same command, but visual similarity alone is not enough to classify them as duplicates. They may originate from different PowerShell logging channels or ingestion paths, so event IDs, record IDs, timestamps, and source fields should be compared before deduplication.
 
-## Question 3: Alert 2 (1/1) — What is the name of the suspicious EXE that is added for Persistence?
+## Phase 2: Correlate the download with Startup-folder persistence
 
-From the previous question, if we look closely once again we can see that by using the parameter: “-OutFile” the .exe program was probably stored in the Temp folder.
+### Question 3: Alert 2 (1/1) — What is the name of the suspicious EXE that is added for Persistence?
 
-*Note: What is* [*Temp folder*](https://appuals.com/what-is-the-temp-folder-and-should-it-be-deleted/)<em>?</em>
+The PowerShell command from Alert 1 specifies a destination under the Windows temporary directory. Alert 2 tests whether that file was subsequently copied or written into an autostart location.
 
-If we look in the “README.txt” file once again, we can extract the following:
+The alert definition scopes the search to Sysmon file-creation telemetry and paths containing the Windows Startup directory:
 
-![](../../assets/images/btlo-soc-alpha-1-009.png)
+![README excerpt showing the Alert 2 Sysmon query and time frame](../../assets/images/btlo-soc-alpha-1-009.png)
 
 - Index pattern: sysmon
 - Search filter: (Event_System_EventID :”11" AND Event_EventData_Image : \*Windows&#92;&#92;Start\*&#92;&#92;Programs&#92;&#92;Startup\*)
 - TimeFrame: 14–4–2021 10:30 to 14–4–2021 13:00
 
-*Note: What is* [*Sysmon Event_ID: 11*](https://www.ultimatewindowssecurity.com/securitylog/encyclopedia/event.aspx?eventid=90011)<em>?</em>
+[Sysmon Event ID 11](https://learn.microsoft.com/en-us/sysinternals/downloads/sysmon#event-id-11-filecreate) records file creation or overwrite activity. Applying the alert’s index, time window, and path filter produces the following result:
 
-With this, we can filter/search the logs once again and we get:
+![Kibana Discover results for Sysmon file creation in a Startup folder](../../assets/images/btlo-soc-alpha-1-010.png)
 
-![](../../assets/images/btlo-soc-alpha-1-010.png)
+![Sysmon FileCreate event identifying MSworker.exe in the Startup path](../../assets/images/btlo-soc-alpha-1-011.png)
 
-![](../../assets/images/btlo-soc-alpha-1-011.png)
+The event identifies `MSworker.exe` in the Windows [Startup folder](https://support.microsoft.com/en-us/windows/add-an-app-to-run-automatically-at-startup-in-windows-10-150da165-dcd9-7230-517b-cf3c295d89dd). Files in this location are launched when the associated user signs in, making the write a strong persistence indicator. The event proves that the file was created or overwritten; it does not, by itself, prove that the executable later ran.
 
-We can see that the “MSworker.exe” program has managed to establish persistence through the “Startup” folder.
+> **Correlation step:** Compare the filename and path with the earlier PowerShell `-OutFile` value. Then look for a matching hash, process-creation event, or network connection to strengthen the link between download and persistence.
 
-*Note: What is* [*“Startup” folder*](https://support.microsoft.com/en-us/windows/add-an-app-to-run-automatically-at-startup-in-windows-10-150da165-dcd9-7230-517b-cf3c295d89dd)<em>?</em>
+This behavior maps to [MITRE ATT&CK T1547.001: Registry Run Keys / Startup Folder](https://attack.mitre.org/techniques/T1547/001/).
 
-## Question 4: Alert 3 (1/2) — What is the name of the suspicious executable file involved?
+## Phase 3: Investigate Registry Run-key persistence
 
-With this, we now move onto the next alert, Alert 3.
+### Question 4: Alert 3 (1/2) — What is the name of the suspicious executable file involved?
 
-After looking once again at the “README.txt” file, we get the following:
+Alert 3 investigates a different persistence mechanism: modification of an autostart location in the Windows Registry. The `README.txt` entry defines the relevant Sysmon Registry event IDs, candidate autorun paths, and time window:
 
-![](../../assets/images/btlo-soc-alpha-1-012.png)
+![README excerpt showing the Alert 3 Registry-event query and time frame](../../assets/images/btlo-soc-alpha-1-012.png)
 
 - Index pattern: sysmon
-- Search filter/rule: \*BTLO VM paste is limited to 100 characters\*
+- Event IDs: 12, 13, and 14
+- Target objects: known autorun locations, including Registry paths containing `Run`
 - Time frame: 15–4–2021 08:00 to 15–4–2021 09:00
 
-After we search in the logs once again we get:
+The supplied rule covers several autorun locations. For this question, the relevant conditions can be isolated into a smaller hypothesis-driven query:
 
-![](../../assets/images/btlo-soc-alpha-1-013.png)
+```text
+Event_System_EventID:("12" OR "13" OR "14")
+AND Event_EventData_TargetObject:*\\Run\\*
+```
 
-![](../../assets/images/btlo-soc-alpha-1-014.png)
+This filter asks a specific question: which Registry create, set, delete, or rename events affected a Run-style autostart path during the alert window? Applying that logic produces the following events:
 
-*Note: What are Sysmon Event ID* [*12*](https://www.ultimatewindowssecurity.com/securitylog/encyclopedia/event.aspx?eventid=90012)<em>,</em> [*13*](https://www.ultimatewindowssecurity.com/securitylog/encyclopedia/event.aspx?eventid=90013) *and* [*14*](https://www.ultimatewindowssecurity.com/securitylog/encyclopedia/event.aspx?eventid=90014)<em>?</em>
+![Kibana Discover results for the Alert 3 Sysmon Registry events](../../assets/images/btlo-soc-alpha-1-013.png)
 
-As we can see there is something to do with the [Windows Registry](https://www.lifewire.com/windows-registry-2625992). If we look some more we can see a “service.exe” program inside the [“&#92;Run&#92;Service”](https://learn.microsoft.com/en-us/windows/win32/setupapi/run-and-runonce-registry-keys)
+![Sysmon Registry event showing service.exe in a Run-key command](../../assets/images/btlo-soc-alpha-1-014.png)
 
-*Note: Sysmon Event_ID 13 (Value Set) is used, alongside the following parameters:*
+[Sysmon Event ID 12](https://learn.microsoft.com/en-us/sysinternals/downloads/sysmon#event-id-12-registryevent-object-create-and-delete) covers Registry object creation and deletion, [Event ID 13](https://learn.microsoft.com/en-us/sysinternals/downloads/sysmon#event-id-13-registryevent-value-set) covers value changes, and [Event ID 14](https://learn.microsoft.com/en-us/sysinternals/downloads/sysmon#event-id-14-registryevent-key-and-value-rename) covers key or value renaming.
 
-- */t REG_SZ =\> specifies the type of registry (*[*Null-terminated string*](https://learn.microsoft.com/en-us/windows/win32/shell/hkey-type)<em>)</em>
-- */F /D C:&#92;Windows&#92;service.exe =\>Adds registry without prompt and specifies the new data*
+The matching event shows `service.exe` being written beneath a [Windows Run key](https://learn.microsoft.com/en-us/windows/win32/setupapi/run-and-runonce-registry-keys). This is the significant relationship: the target object identifies the autostart entry, while the Registry data identifies the executable that entry will launch.
 
-*More about* [*reg add*](https://learn.microsoft.com/en-us/windows-server/administration/windows-commands/reg-add)
+The recorded `reg add` command uses the following parameters:
 
-## Question 5: Alert 3 (2/2) — What is the name of the key path?
+- `/t REG_SZ` selects a [null-terminated string](https://learn.microsoft.com/en-us/windows/win32/shell/hkey-type) value.
+- `/d C:\Windows\service.exe` supplies the executable path stored as the value data.
+- `/f` writes the value without an interactive confirmation prompt.
 
-The Registry is made out of the so-called [Keys and Sub-Keys](https://www.lifewire.com/what-is-a-registry-key-2625999). For this question we just have to look at the last entry in the path:
+The full [`reg add` syntax](https://learn.microsoft.com/en-us/windows-server/administration/windows-commands/reg-add) confirms how these parameters combine. Recording the entire command is more useful than extracting only the filename because it preserves the target, data type, value data, and overwrite behavior.
 
-![](../../assets/images/btlo-soc-alpha-1-015.png)
+### Question 5: Alert 3 (2/2) — What is the name of the key path?
 
-Which is, “Service”.
+Windows Registry data is organized into [keys, subkeys, and named values](https://learn.microsoft.com/en-us/windows/win32/sysinfo/structure-of-the-registry). The event’s target-object field provides the complete location:
 
-## Question 6: Alert 4 (1/2) — What is the name of the task?
+![Registry target object ending in the Run entry named Service](../../assets/images/btlo-soc-alpha-1-015.png)
 
-Let’s check the “README.txt” file for the last time, and we get:
+The final component is `Service`.
 
-![](../../assets/images/btlo-soc-alpha-1-016.png)
+In precise Registry terminology, `Run` is the key and `Service` is the value name appended to the event’s target-object path. Preserving the complete path avoids ambiguity about the hive, user SID, persistence key, and value involved.
+
+## Phase 4: Recover scheduled-task persistence
+
+### Question 6: Alert 4 (1/2) — What is the name of the task?
+
+Alert 4 examines scheduled-task creation. The lab definition again provides the data source, process and command-line conditions, and time window:
+
+![README excerpt showing the Alert 4 schtasks query and time frame](../../assets/images/btlo-soc-alpha-1-016.png)
 
 - Index pattern: sysmon
 - Search filter/rule: Event_EventData_Image:\*schtasks.exe\* AND Event_EventData_CommandLine:\*Create\*
 - Time frame: 20–4–2021 10:00 to 20–4–2021 15:00
 
-At this point, you know the drill:
+The query looks for `schtasks.exe` processes whose command line contains `Create`. After applying the absolute time range and inspecting the matching event, the complete task-creation command becomes visible:
 
-![](../../assets/images/btlo-soc-alpha-1-017.png)
+![Kibana Discover result for scheduled-task creation through schtasks.exe](../../assets/images/btlo-soc-alpha-1-017.png)
 
-![](../../assets/images/btlo-soc-alpha-1-018.png)
+![Sysmon command line showing the task name, schedule, and target program](../../assets/images/btlo-soc-alpha-1-018.png)
 
-The “[SchTasks](https://learn.microsoft.com/en-us/windows-server/administration/windows-commands/schtasks)” command is used in this case, specifically “[SchTasks Create](https://learn.microsoft.com/en-us/windows-server/administration/windows-commands/schtasks-create)” with the following parameters:
+Windows [`SchTasks`](https://learn.microsoft.com/en-us/windows-server/administration/windows-commands/schtasks) manages scheduled tasks. In this event, [`SchTasks Create`](https://learn.microsoft.com/en-us/windows-server/administration/windows-commands/schtasks-create) is invoked with three parameters that describe the persistence object:
 
-- /SC Daily =\> run it everyday
-- /TN “My Task” =\> task name
-- /TR “C:&#92;Program Files&#92;GameLoaderGen&#92;gen.bat” =\> program to run
+| Parameter | Recorded value | Meaning |
+| --- | --- | --- |
+| `/SC` | `Daily` | Run the task every day |
+| `/TN` | `My Task` | Assign the scheduled task’s name |
+| `/TR` | `C:\Program Files\GameLoaderGen\gen.bat` | Define the program or script to execute |
 
-## Question 7: Alert 4 (2/2) — What is the full path of the program?
+The full command line ties the persistence mechanism together: `/Create` defines the action, `/SC` supplies the schedule, `/TN` names the task, and `/TR` identifies what the task will execute. In a production investigation, I would also record the parent process, user, integrity level, hashes, and any Task Scheduler operational events.
 
-From the previous question, the answer to Question 7 is:
+This behavior maps to [MITRE ATT&CK T1053.005: Scheduled Task](https://attack.mitre.org/techniques/T1053/005/).
 
-C:&#92;Program Files&#92;GameLoaderGen&#92;gen.bat
+### Question 7: Alert 4 (2/2) — What is the full path of the program?
 
-## Summary
+The `/TR` field contains the requested program path:
 
-So far we saw 3 methods of gaining persistence in a Windows environment and 1 method of gaining a foothold.
+```text
+C:\Program Files\GameLoaderGen\gen.bat
+```
 
-For Alert 1&2:
+The task name and target path should be reported separately. The task name identifies the persistence object, while `/TR` identifies the executable or script that Windows will launch when the trigger conditions are met.
 
-- Foothold was established by using the Invoke-WebRequest cmdlet
-- Persistence was established through the “Startup” Folder
+## Investigation outcome
+
+The four alerts describe one download mechanism and three Windows persistence mechanisms. They are supported by different telemetry and should be reported separately.
+
+For Alerts 1 and 2:
+
+- PowerShell invoked `Invoke-WebRequest` with a remote URI and local output path.
+- Sysmon recorded `MSworker.exe` being written to a Startup folder.
 
 For Alert 3:
 
-- Persistence was established by modifying the “Run&#92;Service” Key in the Windows Registry
+- A Registry value named `Service` was configured beneath a Run key to reference `C:\Windows\service.exe`.
 
 For Alert 4:
 
-- Persistence was established through scheduled tasks using the built-in Task Scheduler
+- `schtasks.exe` created a daily task named `My Task` that launches `C:\Program Files\GameLoaderGen\gen.bat`.
+
+## Findings and analytical flow
+
+| Stage | Observed artifact | What it establishes | Suggested corroboration |
+| --- | --- | --- | --- |
+| Download | PowerShell event containing `Invoke-WebRequest`, `-Uri`, and `-OutFile` | A command attempted to retrieve content and write it to disk | File hash, Sysmon FileCreate, proxy, DNS, or network telemetry |
+| Startup persistence | Sysmon Event ID 11 in a Startup path | An executable was created or overwritten in an autostart location | Process creation after logon and matching file hash |
+| Registry persistence | Sysmon Event ID 13 under a Run path | A Registry value was set to reference an executable | Full target object, value data, user SID, and subsequent execution |
+| Scheduled-task persistence | `schtasks.exe /Create` command line | A named recurring task was configured with a target program | Task Scheduler events, task XML, and execution history |
+
+The most useful investigative pivot is the relationship between artifacts. The PowerShell event identifies a source and destination; the file-creation event shows a similarly named executable entering an autostart location; the Registry and scheduled-task events reveal two additional persistence paths. Each event answers one part of the sequence, while correlation makes the overall conclusion stronger.
+
+## Investigation limitations
+
+- A command line shows intent and invocation, but not necessarily successful completion.
+- A file-creation or Registry-value event confirms a change, but not that the persisted program later executed.
+- Similar events can be duplicates or separate records from different channels; compare stable identifiers before discarding them.
+- Time-window accuracy depends on the configured time zone and ingestion timestamps.
+- Field names shown in this lab reflect its Elastic pipeline and may differ in another environment.
+
+## Key takeaways
+
+- Start every alert with its time frame, data source, and rule before searching broadly.
+- Select the correct index pattern; a valid query against the wrong dataset can appear to have no evidence.
+- Read the entire command line and distinguish source indicators, destination paths, object names, and value data.
+- Use Sysmon event semantics to describe what the telemetry proves—and what it does not prove.
+- Correlate execution, file, Registry, and task artifacts instead of treating alerts as isolated answers.
+
+## Additional resources
+
+- [Microsoft: PowerShell cmdlet overview](https://learn.microsoft.com/en-us/powershell/scripting/developer/cmdlet/cmdlet-overview) — the structure and behavior of PowerShell cmdlets.
+- [Microsoft: Invoke-WebRequest](https://learn.microsoft.com/en-us/powershell/module/microsoft.powershell.utility/invoke-webrequest) — cmdlet syntax and parameters, including `-Uri` and `-OutFile`.
+- [Microsoft Sysinternals: Sysmon](https://learn.microsoft.com/en-us/sysinternals/downloads/sysmon) — official descriptions of file, Registry, and process event IDs.
+- [Microsoft: Run and RunOnce Registry keys](https://learn.microsoft.com/en-us/windows/win32/setupapi/run-and-runonce-registry-keys) — Windows autostart behavior for Run keys.
+- [Microsoft: Schtasks.exe](https://learn.microsoft.com/en-us/windows/win32/taskschd/schtasks) — scheduled-task command syntax and parameters.
+- [MITRE ATT&CK T1547.001](https://attack.mitre.org/techniques/T1547/001/) — Registry Run Keys and Startup Folder persistence.
+- [MITRE ATT&CK T1053.005](https://attack.mitre.org/techniques/T1053/005/) — Scheduled Task persistence.
