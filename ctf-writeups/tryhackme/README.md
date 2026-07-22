@@ -1,6 +1,6 @@
 # TryHackMe
 
-Writeups and practical lab notes for TryHackMe rooms.
+Writeups for TryHackMe rooms.
 
 ## Writeups
 
