@@ -1,6 +1,6 @@
 # Cybersecurity Articles
 
-Cybersecurity articles.
+A collection of cybersecurity articles.
 
 ## Articles
 
