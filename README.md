@@ -1,3 +1,7 @@
+---
+description: Cybersecurity articles, security research, practical labs, and CTF writeups by Sirbu-Boeti Eduard-Cristian.
+---
+
 # SBEC Security
 
 SBEC Security is a cybersecurity publication by [Sirbu-Boeti Eduard-Cristian](about.md). It brings together research, practical articles, labs, and CTF writeups in a clear, organized collection.

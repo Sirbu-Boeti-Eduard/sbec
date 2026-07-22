@@ -1,7 +1,12 @@
 # CTF Writeups
 
-This section will contain writeups for capture-the-flag challenges. No challenge content has been added during the site-foundation phase.
+Writeups and practical lab notes organized by platform.
 
-As the collection grows, writeups may be organized by platform or event, challenge category, difficulty, or year. Subdirectories will be introduced only when real content requires them.
+## Platforms
+
+- [Blue Team Labs Online](btlo/README.md)
+- [TryHackMe](tryhackme/README.md)
+
+As the collection grows, writeups may also be organized by event, challenge category, difficulty, or year.
 
 [Return to the homepage](../README.md).
