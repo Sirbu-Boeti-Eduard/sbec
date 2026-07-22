@@ -103,7 +103,7 @@ The Data Directories view distinguishes the field’s location in the optional h
 | Property | Value |
 | --- | --- |
 | Import Directory RVA field offset | `0x00000138` |
-| RVA stored in the field | `0x00000250` |
+| RVA stored in the field | `0x00002050` |
 | Containing section | `.rdata` |
 
 The question asks for the offset of the Import Directory RVA field, so the requested value is `0x138`. The [Microsoft PE format specification](https://learn.microsoft.com/en-us/windows/win32/debug/pe-format) describes the import directory as the structure used to resolve references to functions exported by DLLs.
@@ -212,7 +212,7 @@ This is the timestamp stored in the PE header, commonly described as a compile t
 | Suspicious string | `39upd.dll` | Anomalous DLL-like string requiring follow-up |
 | Declared OS version | Windows NT 4.0 | PE compatibility metadata, not execution proof |
 | Entry point | `0x00001000` in `.text` | Conventional executable-code location |
-| Import Directory field | Offset `0x138`, section `.rdata` | Field stores RVA `0x250` |
+| Import Directory field | Offset `0x138`, section `.rdata` | Field stores RVA `0x2050` |
 | Shell API module | `shell32.dll` | Provides `ShellExecuteA` |
 | Registry API module | `advapi32.dll` | Provides create, open, set, and close operations |
 | Imported modules | `kernel32.dll`, `advapi32.dll`, `shell32.dll` | Core Windows, Registry, and Shell capabilities |
