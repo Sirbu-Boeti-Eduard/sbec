@@ -1,6 +1,6 @@
-# [TODO: GitBook site name]
+# SBEC Security
 
-This publication is a collection of cybersecurity research, practical articles, labs, and CTF writeups. It is designed to keep technical material clear, organized, and easy to expand over time.
+SBEC Security is a cybersecurity publication by [Sirbu-Boeti Eduard-Cristian](about.md). It brings together research, practical articles, labs, and CTF writeups in a clear, organized collection.
 
 ## Explore
 
@@ -11,11 +11,3 @@ This publication is a collection of cybersecurity research, practical articles, 
 ## Responsible use
 
 The material in this publication is intended for education, authorized testing, and defensive security. Apply techniques only to systems you own or have explicit permission to assess.
-
-## Details to provide before launch
-
-- **Author name:** [TODO: Provide your preferred public name]
-- **Biography:** [TODO: Provide a short professional biography]
-- **Social links:** [TODO: Provide the profiles or contact links you want to publish]
-- **GitHub repository name:** [TODO: Confirm the repository name; `cybersecurity-publication` is the working suggestion]
-- **GitBook site name:** [TODO: Provide the public site name]
