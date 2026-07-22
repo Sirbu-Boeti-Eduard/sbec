@@ -136,7 +136,7 @@ The `honeypotbots.dat` file contained repeated entries for the same network addr
 
 **Observation.** The file recorded multiple requests for which PHP observed the same network source address.
 
-**Assessment.** The same address, `167.88.61.92`, also appeared in `ZA2IR.txt`. Its first recorded timestamp was 24 seconds after the preserved urlscan.io submission began, and the address belongs to a [GTHost hosting-provider range](https://ipinfo.io/167.88.61.92). The timing and network context strongly suggest automated scanning or hosted analysis traffic, although the available logs cannot identify the source conclusively. They do not support attributing the address to the site's administrator.
+**Assessment.** The same address, `167.88.61.92`, also appeared in `ZA2IR.txt`. Its first recorded timestamp was 24 seconds after the preserved urlscan.io submission began. Given the close timing between the scan and the logged request, it is possible that the address belonged to the urlscan.io scanner, although the available logs cannot confirm this conclusively.
 
 Despite its filename, the artifact is better described as visitor or anti-bot logging. It does not demonstrate that a conventional honeypot was triggered.
 
