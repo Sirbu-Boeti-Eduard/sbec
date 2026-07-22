@@ -1,181 +1,246 @@
-# BTLO Basilisk 1
+---
+description: A static malware-analysis walkthrough of a Windows PE sample, covering strings, headers, imports, packing indicators, hashing, and compile-time metadata.
+---
+
+# BTLO: Basilisk 1
 
 <!-- Original publication date: 2024-03-17 -->
 
 ## Introduction
 
-![](../../assets/images/btlo-basilisk-1-001.png)
+![Basilisk 1 investigation cover image](../../assets/images/btlo-basilisk-1-001.png)
 
-Difficulty: Easy
+Hello, my name is Sirbu-Boeti Eduard-Cristian and in this write-up I am going to cover the “Basilisk 1” investigation on Blue Team Labs Online.
 
-Scenario: \*too long\* Basically, you dream about a Basilisk and then you are tasked with analyzing a malware named Basilisk.
+[**Blue Team Labs Online \| Basilisk 1**<br><span>blueteamlabs.online</span>](https://blueteamlabs.online "https://blueteamlabs.online")
 
-Tools: BinTexT, CFFExplorer, PEiD, ExeInfo, PEView
+| Investigation detail | Description |
+| --- | --- |
+| Platform | Blue Team Labs Online |
+| Investigation | Basilisk 1 |
+| Difficulty | Easy |
+| Primary evidence | A Windows Portable Executable sample named `Basilisk.bin` |
+| Focus areas | String triage, PE headers, entry point, imports, packing heuristics, hashing, and timestamp analysis |
+| Tools demonstrated | BinText, Exeinfo PE, PEiD, CFF Explorer, PEview, and PowerShell |
 
-**Disclaimer: BTLO doesn’t allow you to view your past answers and I have previously completed this investigation, as such I cannot guarantee 100% that the answers are correct.**
+### Scenario
 
-## Question 1: Using the BinTexT tool, Is there a string that is related to a malicious executable?
+The lab provides a sample named `Basilisk.bin` and asks the analyst to characterize it through static analysis. The investigation focuses on what can be learned from printable strings, Portable Executable metadata, imported functions, entropy, and cryptographic identification without running the sample.
 
-On the Desktop we have a folder named “BTLO_LabFiles”, where all of our needed tools are.
+> **Lab-safety note:** Treat `Basilisk.bin` as malicious. Keep the sample in the isolated BTLO environment, calculate a hash before further analysis, and do not execute it on a production or personal system. The tools used here inspect the file statically; they do not make the sample safe.
 
-![](../../assets/images/btlo-basilisk-1-002.png)
+## Investigation approach
 
-After running BinTexT, selecting the “Basilisk.bin” file and pressing “Go”, we get the following:
+A structured static-analysis workflow moves from identification to capabilities:
 
-![](../../assets/images/btlo-basilisk-1-003.png)
+1. Record the sample’s cryptographic hash so every observation can be tied to the same file.
+2. Extract strings and mark unusual filenames, paths, URLs, or commands for follow-up.
+3. Inspect the PE headers to establish architecture, entry point, sections, compatibility metadata, and data directories.
+4. Review imported DLLs and APIs to form hypotheses about possible behavior.
+5. Compare packing heuristics and treat the PE timestamp as untrusted metadata until corroborated.
 
-If we look through all the values, we get the following possible executables:
+Static evidence supports hypotheses about a program’s design. It does not prove that a capability was exercised during execution.
 
-- kernel32.dll: “Provide access to the basic resources available to a Windows system”
-- advapi32.dll: “Provides access to functions beyond the kernel. Included are things like the Windows registry, shutdown/restart the system (or abort) etc.”
-- shell32.dll: “Component of the Windows API allows applications to access functions provided by the operating system shell”
-- 39upd.dll: ??Unknown??
+## Phase 1: Triage strings and compatibility metadata
 
-According to [Wikipedia](https://en.wikipedia.org/wiki/Windows_API), the only .dll which doesn’t appear is “39upd.dll”
+### Question 1: Is there a string related to a suspicious executable?
 
-> *As such, the answer to Question 1 is:*
+The lab folder contains `Basilisk.bin` and the required analysis utilities:
 
-> *39upd.dll*
+![BTLO lab folder containing Basilisk.bin and the static-analysis tools](../../assets/images/btlo-basilisk-1-002.png)
 
-## Question 2: Using the ExeInfo tool, what Windows version does Basilisk used to target? Give the complete machine version.
+Loading the sample into BinText exposes its printable strings:
 
-After opening ExeInfo, selecting “Basilisk.bin” and running it, we get:
+![BinText results showing DLL names and other strings extracted from Basilisk.bin](../../assets/images/btlo-basilisk-1-003.png)
 
-![](../../assets/images/btlo-basilisk-1-004.png)
+The output contains familiar Windows DLLs such as `kernel32.dll`, `advapi32.dll`, and `shell32.dll`, alongside the unusual string `39upd.dll`. The familiar names are expected Windows components and are not suspicious by themselves. `39upd.dll` stands out because it does not match the three modules later visible in the import table.
 
-To the right of “SubSystem: Windows GUI” there is a “PE” button. After we press it we get:
+This makes `39upd.dll` a useful lead for further analysis, but a string alone does not prove that the file exists, is loaded, or is malicious.
 
-*Note: PE means Portable Executable*
+> **Finding:** `39upd.dll`
 
-![](../../assets/images/btlo-basilisk-1-005.png)
+### Question 2: Which Windows version does the PE header identify?
 
-Here we get a new window with the following info:
+Exeinfo PE recognizes the sample as a 32-bit Windows GUI executable and exposes additional header information through its PE view:
 
-- OS version: 4.0 ; 4.0 Win NT 4.0
+![Exeinfo PE overview of Basilisk.bin](../../assets/images/btlo-basilisk-1-004.png)
 
-> *As such, the answer to Question 2 is:*
+![Exeinfo PE header view showing OS version 4.0 and the Windows NT 4.0 label](../../assets/images/btlo-basilisk-1-005.png)
 
-> *Win NT 4.0*
+The optional header contains major and minor operating-system version values of `4.0`, which the tool labels as Windows NT 4.0.
 
-## Question 3: Using the PEiD, what is the Entry Point? What is the EP section?
+This field expresses compatibility metadata declared by the PE header. It should not be treated as proof that the sample was built or executed on that operating system.
 
-After opening PEiD and selecting “Basilisk.bin” we get:
+> **Finding:** `Windows NT 4.0`
 
-![](../../assets/images/btlo-basilisk-1-006.png)
+## Phase 2: Map the entry point and imported capabilities
 
-Now first what is EP/Entry Point? According to [Wikipedia](https://en.wikipedia.org/wiki/Entry_point), “In computer programming, an **entry point** is the place in a program where the execution of a program begins, and where the program has access to command line arguments.”
+### Question 3: What are the entry point and its section?
 
-As we can see, the entry point is 00001000. This is an address in memory, it can also be written as 0x00001000.
+PEiD reports both the entry-point relative virtual address and the section containing it:
 
-Now what is an EP Section? Well, going by logic, assembly code is divided into sections i.e. .text, .data etc. Each section has a different purpose. For example, going by [Source 1](https://softwareengineering.stackexchange.com/questions/171565/why-is-the-code-section-called-a-text-section) and [Source 2](https://stackoverflow.com/questions/7254176/why-do-we-need-to-define-data-and-text-section-in-assembly) and [Source 3](https://mirzafahad.github.io/2021-05-08-text-data-bss/):
+![PEiD showing entry point 00001000 and the .text section](../../assets/images/btlo-basilisk-1-006.png)
 
-- .text: here goes your code, along with constants; Read-Only
-- .data: global & static variables initialized after .text; Read-Write
+```text
+Entry point RVA: 0x00001000
+Entry-point section: .text
+```
 
-> *As such the answer, to Question 3 is:*
+The entry point identifies where the loader begins executing the image after it has been mapped into memory. The `.text` section conventionally contains executable code, so this placement is consistent with a conventional PE layout.
 
-> *00001000, .text*
+> **Finding:** `0x00001000`, `.text`
 
-## Question 4: Using the CFFExplorer tool, what is the Import Directory RVA Offset of Basilisk? What is the section?
+### Question 4: What are the Import Directory RVA offset and section?
 
-After opening CFFExplorer and “Basilisk.bin” we get:
+CFF Explorer parses the sample as a 32-bit Portable Executable:
 
-![](../../assets/images/btlo-basilisk-1-007.png)
+![CFF Explorer overview of Basilisk.bin](../../assets/images/btlo-basilisk-1-007.png)
 
-First of all, what is Import Directory? It basically contains the addresses of the libraries (.dll) that our program needs. For more info check [Microsoft](https://learn.microsoft.com/en-us/windows/win32/debug/pe-format#import-directory-table).
+The Data Directories view distinguishes the field’s location in the optional header from the RVA stored inside that field:
 
-Now, what is RVA Offset? First of all, we need to find out what Physical Memory Address, VA (virtual address), RVA (relative VA) and Offset are. I recommend reading this [Stack Overflow post](https://stackoverflow.com/questions/2170843/va-virtual-address-rva-relative-virtual-address).
+![CFF Explorer Data Directories showing the Import Directory RVA field](../../assets/images/btlo-basilisk-1-008.png)
 
-After navigating to the Data Directories we get:
+| Property | Value |
+| --- | --- |
+| Import Directory RVA field offset | `0x00000138` |
+| RVA stored in the field | `0x00000250` |
+| Containing section | `.rdata` |
 
-![](../../assets/images/btlo-basilisk-1-008.png)
+The question asks for the offset of the Import Directory RVA field, so the requested value is `0x138`. The [Microsoft PE format specification](https://learn.microsoft.com/en-us/windows/win32/debug/pe-format) describes the import directory as the structure used to resolve references to functions exported by DLLs.
 
-As we can see, our Import Directory RVA Offset is 00000138 and the Section is .rdata
+> **Finding:** `0x00000138`, `.rdata`
 
-*Note: .rdata =\> “*[*This is where the import information or read-only initialized data is located.*](https://library.mosse-institute.com/articles/2022/05/reverse-engineering-portable-executables-pe-part-2/reverse-engineering-portable-executables-pe-part-2.html)*”*
+### Question 5: Which DLL provides `ShellExecuteA`?
 
-> *As such, the answer to Question 4 is:*
+The Import Directory groups imported functions beneath their source modules. Selecting `shell32.dll` reveals `ShellExecuteA`:
 
-> *00000138, .rdata*
+![CFF Explorer showing ShellExecuteA imported from shell32.dll](../../assets/images/btlo-basilisk-1-009.png)
 
-## Question 5: Using the CFFExplorer tool, What DLL is responsible for executing “ShellExecuteA” API?
+Microsoft documents [`ShellExecuteA`](https://learn.microsoft.com/en-us/windows/win32/api/shellapi/nf-shellapi-shellexecutea) as a function that performs an operation on a specified file or object. Its presence suggests that the program may open or launch a file, application, or other shell-managed object. The import does not reveal which object or operation is used; that requires code-level or runtime analysis.
 
-Within CFFExplorer let’s navigate to the Import Directory:
+> **Finding:** `shell32.dll`
 
-![](../../assets/images/btlo-basilisk-1-009.png)
+### Question 6: Which DLL provides the Registry-related imports, and what are they?
 
-If we navigate some more we can see that the “ShellExecuteA” API is executed in the “shell32.dll”.
+Selecting `advapi32.dll` shows four Registry APIs:
 
-*Note: According to* [*Microsoft*](https://learn.microsoft.com/en-us/windows/win32/api/shellapi/nf-shellapi-shellexecutea)*, ShellExecuteA, in this case, is probably used to execute another program.*
+![CFF Explorer showing four Registry APIs imported from advapi32.dll](../../assets/images/btlo-basilisk-1-010.png)
 
-> *As such, the answer to Question 5 is:*
+- `RegCloseKey`
+- `RegSetValueExA`
+- `RegOpenKeyExA`
+- `RegCreateKeyA`
 
-> *shell32.dll*
+Together, these imports indicate that the program contains code capable of creating or opening Registry keys, setting values, and closing handles. Registry modification can support legitimate configuration as well as persistence or system changes, so the surrounding call arguments and runtime behavior are needed to determine intent. Microsoft’s [Registry documentation](https://learn.microsoft.com/en-us/windows/win32/sysinfo/registry-functions) provides the semantics of these APIs.
 
-## Question 6: Using the CFFExplorer tool, What DLL is responsible for executing registry related functions? What are these APIs?
+> **Finding:** `advapi32.dll` — `RegCloseKey`, `RegSetValueExA`, `RegOpenKeyExA`, and `RegCreateKeyA`
 
-Let’s change our view to the “advapi32.dll” file:
+### Question 7: Which modules are imported by Basilisk?
 
-![](../../assets/images/btlo-basilisk-1-010.png)
+The module list contains three DLLs:
 
-Here we can see the 4 registry functions: RegCloseKey, RegSetValueExA, RegOpenKeyExA, RegCreateKeyA.
+![CFF Explorer module list for Basilisk.bin](../../assets/images/btlo-basilisk-1-011.png)
 
-*Note: All the registry functions:* [*https://learn.microsoft.com/en-us/windows/win32/api/winreg/*](https://learn.microsoft.com/en-us/windows/win32/api/winreg/)
+```text
+kernel32.dll
+advapi32.dll
+shell32.dll
+```
 
-> *As such, the answer to Question 6 is:*
+At a high level, these imports cover core process and file functionality, Registry access, and Windows Shell operations. This is a small import set, but it is not enough on its own to classify the sample.
 
-> *RegCloseKey, RegSetValueExA, RegOpenKeyExA, RegCreateKeyA*
+> **Finding:** `kernel32.dll`, `advapi32.dll`, `shell32.dll`
 
-## Question 7: Using the CFFExplorer tool, What are all the modules imported by Basilisk?
+## Phase 3: Assess packing, establish identity, and review time metadata
 
-![](../../assets/images/btlo-basilisk-1-011.png)
+### Question 8: Is Basilisk packed, and what is its entropy?
 
-As we can see, the modules are: kernel32.dll, advapi32.dll, shell32.dll.
+PEiD’s Extra Information window reports several heuristic results:
 
-> *As such, the answer to Question 7 is:*
+![PEiD packing checks showing entropy 4.63, EP Check Not Packed, and Fast Check Packed](../../assets/images/btlo-basilisk-1-012.png)
 
-> *kernel32.dll, advapi32.dll, shell32.dll*
+| Heuristic | Result |
+| --- | --- |
+| Entropy | `4.63 (Not Packed)` |
+| Entry-point check | `Not Packed` |
+| Fast check | `Packed` |
 
-## Question 8: Using the PEiD tool, Is Basilisk packed? What is the Entropy?
+The entropy and entry-point checks support the lab’s expected `Not Packed` classification, while the fast check disagrees. This is a useful reminder that packer detection is heuristic. Entropy measures byte-level randomness; a lower value is less suggestive of compression or encryption, but no single threshold proves that a file is unpacked.
 
-What is packed? According to [this](https://security.stackexchange.com/questions/43528/possible-to-detect-packed-executable): “A packer is a way of obfuscating an executable program”
+> **Finding:** `No`; entropy `4.63`
 
-What is entropy? According to [this](https://practicalsecurityanalytics.com/file-entropy/): “Entropy is a measure of randomness within a set of data”. Basically, data is added to change the hash value, but if it is too random it will have a high entropy (“Nearly 50% of all malware samples have an entropy of 7.2 or greater”).
+### Question 9: What is the SHA-256 hash of Basilisk?
 
-Let’s navigate once again to the PEiD tool and in the bottom-right hit the “\>\>” icon to get to the “Extra Information” tab.
+PowerShell’s [`Get-FileHash`](https://learn.microsoft.com/en-us/powershell/module/microsoft.powershell.utility/get-filehash) cmdlet calculates a digest from the sample’s contents:
 
-![](../../assets/images/btlo-basilisk-1-012.png)
+```powershell
+Get-FileHash .\Basilisk.bin -Algorithm SHA256
+```
 
-With this, we can see that we have an entropy of 4.63 and we can determine that this executable is not packed.
+![PowerShell Get-FileHash output for Basilisk.bin](../../assets/images/btlo-basilisk-1-013.png)
 
-> *As such, the answer to Question 8 is:*
+```text
+8DD96E84B444E5F9C0814F042DD1F679E20656354BC57F7B4A9439E66E426D66
+```
 
-> *No, 4.63*
+The hash provides a stable identifier for this exact sample and supports evidence-integrity checks. It does not independently establish that the file is malicious.
 
-## Question 9: What is the SHA256 hash value of the Basilisk?
+> **Finding:** `8DD96E84B444E5F9C0814F042DD1F679E20656354BC57F7B4A9439E66E426D66`
 
-We simply run this command in PowerShell and we get:
+### Question 10: Which timestamp is stored in the PE file header?
 
-![](../../assets/images/btlo-basilisk-1-013.png)
+PEview exposes the parsed PE structure and raw bytes:
 
-> *As such, the answer to Question 9 is:*
+![PEview displaying the Basilisk.bin PE structure and raw bytes](../../assets/images/btlo-basilisk-1-014.png)
 
-> *8DD96E84B444E5F9C0814F042DD1F679E20656354BC57F7B4A9439E66E426D66*
+Under `IMAGE_NT_HEADERS` → `IMAGE_FILE_HEADER`, the `Time Date Stamp` field resolves to:
 
-## Question 10: Using the PEView Tool, Can you identify when was Basilisk was made?
+![PEview IMAGE_FILE_HEADER showing the timestamp 2008-10-10 15:49:18 UTC](../../assets/images/btlo-basilisk-1-015.png)
 
-After opening the program, we are greeted with this:
+```text
+2008-10-10 15:49:18 UTC
+```
 
-![](../../assets/images/btlo-basilisk-1-014.png)
+This is the timestamp stored in the PE header, commonly described as a compile timestamp. Because the value can be modified independently of the program’s actual build process, it should be corroborated with other metadata before being used in a timeline.
 
-After digging around the file, in the IMAGE_NT_HEADERS \> IMAGE_FILE_HEADER there is the date: 2008/10/10 Fri 15:49:18 UTC.
+> **Finding:** `2008-10-10 15:49:18 UTC`
 
-![](../../assets/images/btlo-basilisk-1-015.png)
+## Investigation outcome
 
-> *As such, the answer to Question 10 is:*
+| Investigative question | Finding | Analyst interpretation |
+| --- | --- | --- |
+| Suspicious string | `39upd.dll` | Anomalous DLL-like string requiring follow-up |
+| Declared OS version | Windows NT 4.0 | PE compatibility metadata, not execution proof |
+| Entry point | `0x00001000` in `.text` | Conventional executable-code location |
+| Import Directory field | Offset `0x138`, section `.rdata` | Field stores RVA `0x250` |
+| Shell API module | `shell32.dll` | Provides `ShellExecuteA` |
+| Registry API module | `advapi32.dll` | Provides create, open, set, and close operations |
+| Imported modules | `kernel32.dll`, `advapi32.dll`, `shell32.dll` | Core Windows, Registry, and Shell capabilities |
+| Packing result | Expected answer: No; entropy `4.63` | Two heuristics say not packed; fast check disagrees |
+| SHA-256 | `8DD96E84B444E5F9C0814F042DD1F679E20656354BC57F7B4A9439E66E426D66` | Stable identifier for the analyzed sample |
+| PE timestamp | `2008-10-10 15:49:18 UTC` | Untrusted header metadata requiring corroboration |
 
-> *2008/10/10 Fri 15:49:18 UTC*
+## Investigation limitations
 
-## Summary
+- This investigation is based on static analysis. The sample was not executed, so no imported capability was observed at runtime.
+- Printable strings may be unused, misleading, or dynamically constructed; `39upd.dll` remains a lead rather than a confirmed loaded module.
+- Imports reveal available functions but not their arguments, calling sequence, or operational intent.
+- PEiD’s packing checks disagree, so the lab classification should be validated with additional structural inspection or a second tool.
+- The PE timestamp is user-controlled metadata and is not a trustworthy creation time without corroboration.
+- The retained evidence does not include a disassembly, control-flow analysis, network capture, process trace, or Registry diff.
 
-Even though we did not really reverse engineer the program with tools such as IDA or Ghidra, we still learned some stuff about the workings of Windows, Windows APIs, how the computer memory works etc. We also played around the binaries of a Portable Executable (PE) and found how it is generally structured.
+## Key takeaways
+
+- Hash the sample first so every result can be tied to a specific file.
+- Use strings to generate investigative leads, then confirm them through headers, imports, code, or runtime evidence.
+- Distinguish a data-directory field’s file offset from the RVA stored in that field.
+- Treat imported APIs as possible capabilities rather than proof of behavior.
+- Compare multiple packing indicators and document disagreements instead of forcing certainty.
+- Treat PE timestamps as untrusted until supported by independent evidence.
+
+## Additional resources
+
+- [Microsoft PE format specification](https://learn.microsoft.com/en-us/windows/win32/debug/pe-format)
+- [Microsoft: `ShellExecuteA`](https://learn.microsoft.com/en-us/windows/win32/api/shellapi/nf-shellapi-shellexecutea)
+- [Microsoft Registry functions](https://learn.microsoft.com/en-us/windows/win32/sysinfo/registry-functions)
+- [Microsoft PowerShell: `Get-FileHash`](https://learn.microsoft.com/en-us/powershell/module/microsoft.powershell.utility/get-filehash)

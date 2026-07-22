@@ -1,3 +1,7 @@
+---
+description: An archived, incomplete Ghidra-assisted static-disassembly draft covering a suspected executable’s hash, image base, entry point, mutex references, and possible replication behavior.
+---
+
 # BTLO: Enter The Dragon 1
 
 <!-- Original publication date: 2023-12-31 -->
