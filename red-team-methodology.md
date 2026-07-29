@@ -10,9 +10,6 @@
 sudo arp-scan -I <INTERFACE> --localnet
 ```
 
-<details>
-<summary>Details</summary>
-
 **Description**
 
 - Sends ARP requests to find active IPv4 hosts on the selected local Layer 2 network.
@@ -23,16 +20,11 @@ sudo arp-scan -I <INTERFACE> --localnet
 - `-I <INTERFACE>` — Selects the network interface to use.
 - `--localnet` — Derives the target range from that interface’s IP address and netmask.
 
-</details>
-
 #### Netdiscover ARP discovery <sup>· PJPT</sup>
 
 ```bash
 sudo netdiscover -i <INTERFACE> -r <IP/MASK>
 ```
-
-<details>
-<summary>Details</summary>
 
 **Description**
 
@@ -43,16 +35,12 @@ sudo netdiscover -i <INTERFACE> -r <IP/MASK>
 
 - `-i <INTERFACE>` — Selects the interface for ARP traffic.
 - `-r <IP/MASK>` — Sets the local CIDR range to scan.
-</details>
 
 #### ICMP range sweep <sup>· CPTS</sup>
 
 ```bash
 fping -a -g <IP/MASK> 2>/dev/null
 ```
-
-<details>
-<summary>Details</summary>
 
 **Description**
 
@@ -65,7 +53,6 @@ fping -a -g <IP/MASK> 2>/dev/null
 - `-g` — Generates addresses from the supplied CIDR range.
 - `<IP/MASK>` — Target CIDR range.
 - `2>/dev/null` — Suppresses error output from the shell.
-</details>
 
 ### Routed-network discovery
 
@@ -74,9 +61,6 @@ fping -a -g <IP/MASK> 2>/dev/null
 ```bash
 sudo nmap -sn -PS22,80,443 -PA80,443 <IP/MASK>
 ```
-
-<details>
-<summary>Details</summary>
 
 **Description**
 
@@ -89,16 +73,12 @@ sudo nmap -sn -PS22,80,443 -PA80,443 <IP/MASK>
 - `-PS22,80,443` — Sends TCP SYN probes to the listed ports.
 - `-PA80,443` — Sends TCP ACK probes to the listed ports.
 - `<IP/MASK>` — Target host or CIDR range.
-</details>
 
 #### UDP service probes <sup>· CPTS</sup>
 
 ```bash
 sudo nmap -sn -PU53,123,161 <IP/MASK>
 ```
-
-<details>
-<summary>Details</summary>
 
 **Description**
 
@@ -110,16 +90,12 @@ sudo nmap -sn -PU53,123,161 <IP/MASK>
 - `-sn` — Performs host discovery without a port scan.
 - `-PU53,123,161` — Sends UDP probes to the listed ports.
 - `<IP/MASK>` — Target host or CIDR range.
-</details>
 
 #### Nmap host-only sweep <sup>· CPTS</sup>
 
 ```bash
 nmap -sn -n <IP/MASK>
 ```
-
-<details>
-<summary>Details</summary>
 
 **Description**
 
@@ -131,4 +107,3 @@ nmap -sn -n <IP/MASK>
 - `-sn` — Performs host discovery without a port scan.
 - `-n` — Disables reverse DNS resolution.
 - `<IP/MASK>` — Target host or CIDR range.
-</details>
