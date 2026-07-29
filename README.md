@@ -9,6 +9,10 @@ SBEC Security is a collection of cybersecurity articles and CTF writeups.
 ## Explore
 
 - [Cybersecurity Articles](cybersecurity-articles/README.md) — Articles about cybersecurity topics.
+- [Projects](projects/README.md) — Open-source projects and contributions.
+- [GitHub](https://github.com/Sirbu-Boeti-Eduard) — Source code and project history.
+- [Red Team Methodology](red-team-methodology.md) — A practical red team methodology reference.
+- [Blue Team Methodology](blue-team-methodology.md) — A practical blue team methodology reference.
 - [CTF Writeups](ctf-writeups/README.md) — Writeups from capture-the-flag challenges.
 
 ## About
