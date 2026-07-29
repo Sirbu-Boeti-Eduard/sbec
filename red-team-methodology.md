@@ -1,10 +1,22 @@
 # Red Team Methodology
 
-## Host Discovery
+## Method Map
 
-### Local-network discovery
+- `1` 🟥 **Host Discovery**
+  - `1.1` 🟦 **Local-network discovery**
+    - `1.1.1` 🟩 ARP host discovery
+    - `1.1.2` 🟩 Netdiscover ARP discovery
+    - `1.1.3` 🟩 ICMP range sweep
+  - `1.2` 🟨 **Routed-network discovery**
+    - `1.2.1` 🟩 TCP SYN and ACK probes
+    - `1.2.2` 🟩 UDP service probes
+    - `1.2.3` 🟩 Nmap host-only sweep
 
-#### ARP host discovery <sup>· PJPT</sup>
+## 🟥 1. Host Discovery
+
+### 🟦 1.1 Local-network discovery
+
+#### 🟩 1.1.1 ARP host discovery <sup>· PJPT</sup>
 
 ```bash
 sudo arp-scan -I <INTERFACE> --localnet
@@ -25,7 +37,7 @@ sudo arp-scan -I <INTERFACE> --localnet
 
 </details>
 
-#### Netdiscover ARP discovery <sup>· PJPT</sup>
+#### 🟩 1.1.2 Netdiscover ARP discovery <sup>· PJPT</sup>
 
 ```bash
 sudo netdiscover -i <INTERFACE> -r <IP/MASK>
@@ -46,7 +58,7 @@ sudo netdiscover -i <INTERFACE> -r <IP/MASK>
 
 </details>
 
-#### ICMP range sweep <sup>· CPTS</sup>
+#### 🟩 1.1.3 ICMP range sweep <sup>· CPTS</sup>
 
 ```bash
 fping -a -g <IP/MASK> 2>/dev/null
@@ -69,9 +81,9 @@ fping -a -g <IP/MASK> 2>/dev/null
 
 </details>
 
-### Routed-network discovery
+### 🟨 1.2 Routed-network discovery
 
-#### TCP SYN and ACK probes <sup>· CPTS</sup>
+#### 🟩 1.2.1 TCP SYN and ACK probes <sup>· CPTS</sup>
 
 ```bash
 sudo nmap -sn -PS22,80,443 -PA80,443 <IP/MASK>
@@ -94,7 +106,7 @@ sudo nmap -sn -PS22,80,443 -PA80,443 <IP/MASK>
 
 </details>
 
-#### UDP service probes <sup>· CPTS</sup>
+#### 🟩 1.2.2 UDP service probes <sup>· CPTS</sup>
 
 ```bash
 sudo nmap -sn -PU53,123,161 <IP/MASK>
@@ -116,7 +128,7 @@ sudo nmap -sn -PU53,123,161 <IP/MASK>
 
 </details>
 
-#### Nmap host-only sweep <sup>· CPTS</sup>
+#### 🟩 1.2.3 Nmap host-only sweep <sup>· CPTS</sup>
 
 ```bash
 nmap -sn -n <IP/MASK>
