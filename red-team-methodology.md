@@ -18,6 +18,14 @@
   - `2.1` **Nmap**
     - `2.1.1` Aggressive all-port scan
     - `2.1.2` SYN stealth with default scripts
+  - `2.2` **SNMP Enumeration**
+    - `2.2.1` snmpwalk community string query
+    - `2.2.2` onesixtyone community string brute force
+  - `2.3` **Web Content Discovery**
+    - `2.3.1` gobuster directory enumeration
+    - `2.3.2` gobuster DNS subdomain enumeration
+    - `2.3.3` curl banner grabbing
+    - `2.3.4` whatweb technology fingerprinting
 - `3` **Initial Attack Vectors**
   - `3.1` **LLMNR/NBT-NS Poisoning**
     - `3.1.1` Responder hash capture
@@ -283,6 +291,163 @@ nmap -T4 -p- -sS -sC <IP/MASK>
 - `-sS` — TCP SYN stealth scan (half-open, default root scan type).
 - `-sC` — Runs default NSE scripts against discovered services.
 - `<IP/MASK>` — Target host or CIDR range.
+
+</details>
+
+### 2.2 SNMP Enumeration
+
+#### 2.2.1 snmpwalk community string query <sup>· PJPT</sup>
+
+```bash
+snmpwalk -v 2c -c <COMMUNITY_STRING> <TARGET_IP> <OID>
+```
+
+<details>
+<summary>Details</summary>
+
+**Description**
+
+- Queries an SNMP-enabled device for information using the specified community string and OID.
+- SNMPv1 and v2c send community strings in plaintext — no encryption or authentication.
+- Common default community strings: `public` (read-only) and `private` (read-write).
+- Useful OIDs: `1.3.6.1.2.1.1.5.0` (hostname), `1.3.6.1.2.1.25.4.2.1.2` (running processes — may reveal credentials in command-line arguments).
+- Enumerate a full OID tree with `1.3.6.1.2.1` as the target.
+
+**Parameters**
+
+- `-v 2c` — SNMP version 2c.
+- `-c <COMMUNITY_STRING>` — Community string (e.g. `public`, `private`).
+- `<TARGET_IP>` — Target device IP.
+- `<OID>` — Object Identifier to query; omit to walk the full tree.
+
+</details>
+
+#### 2.2.2 onesixtyone community string brute force <sup>· PJPT</sup>
+
+```bash
+onesixtyone -c <DICT_FILE> <TARGET_IP>
+```
+
+<details>
+<summary>Details</summary>
+
+**Description**
+
+- Brute-forces SNMP community string names using a dictionary of common strings.
+- The tool's GitHub repository includes a `dict.txt` file with commonly used community strings.
+- Once a valid community string is found, use `snmpwalk` to enumerate the device.
+
+**Parameters**
+
+- `-c <DICT_FILE>` — Dictionary file containing community strings, one per line.
+- `<TARGET_IP>` — Target device IP.
+
+**Reference:** [onesixtyone GitHub](https://github.com/trailofbits/onesixtyone)
+
+</details>
+
+### 2.3 Web Content Discovery
+
+#### 2.3.1 gobuster directory enumeration <sup>· PJPT</sup>
+
+```bash
+gobuster dir -u <TARGET_URL> -w /usr/share/seclists/Discovery/Web-Content/common.txt
+```
+
+<details>
+<summary>Details</summary>
+
+**Description**
+
+- Brute-forces hidden directories and files on a web server using a wordlist.
+- Reveals resources not intended for public access — admin panels, backup files, configuration leaks, or CMS installations.
+- Seclists is assumed installed (`/usr/share/seclists/`); common wordlists include `common.txt`, `directory-list-2.3-medium.txt`, and `raft-large-directories.txt`.
+
+**Parameters**
+
+- `dir` — Directory/file brute-forcing mode.
+- `-u <TARGET_URL>` — Target base URL (e.g. `http://10.10.10.121/`).
+- `-w <WORDLIST>` — Path to the wordlist file.
+
+**Useful HTTP Status Codes**
+
+| Code | Meaning |
+|---|---|
+| 200 | OK — resource is accessible |
+| 301 | Redirect — resource moved, often points to a real path |
+| 403 | Forbidden — resource exists but access is denied |
+| 401 | Unauthorised — authentication required |
+
+</details>
+
+#### 2.3.2 gobuster DNS subdomain enumeration <sup>· PJPT</sup>
+
+```bash
+gobuster dns -d <DOMAIN> -w /usr/share/seclists/Discovery/DNS/namelist.txt
+```
+
+<details>
+<summary>Details</summary>
+
+**Description**
+
+- Enumerates subdomains of a given domain using a DNS wordlist.
+- Useful for discovering hidden admin panels, staging environments, or internal applications exposed externally.
+- Ensure a DNS server is configured in `/etc/resolv.conf` (e.g. `1.1.1.1`).
+
+**Parameters**
+
+- `dns` — DNS subdomain brute-forcing mode.
+- `-d <DOMAIN>` — Target domain (e.g. `inlanefreight.com`).
+- `-w <WORDLIST>` — Path to the DNS wordlist (e.g. `/usr/share/seclists/Discovery/DNS/namelist.txt`).
+
+</details>
+
+#### 2.3.3 curl banner grabbing <sup>· PJPT</sup>
+
+```bash
+curl -IL <TARGET_URL>
+```
+
+<details>
+<summary>Details</summary>
+
+**Description**
+
+- Retrieves HTTP response headers from a web server, revealing the server software, framework, and security headers.
+- `-I` — Fetch only the HTTP response headers (HEAD request).
+- `-L` — Follow redirects, showing headers for the final destination.
+- Common findings: `Server` header (Apache/nginx version), `X-Powered-By` (PHP/ASP.NET), `Set-Cookie` (session handling), missing security headers (e.g. `Content-Security-Policy`).
+
+</details>
+
+#### 2.3.4 whatweb technology fingerprinting <sup>· PJPT</sup>
+
+**Single target:**
+
+```bash
+whatweb <TARGET_IP>
+```
+
+**CIDR range (suppress errors):**
+
+```bash
+whatweb --no-errors <IP/MASK>
+```
+
+<details>
+<summary>Details</summary>
+
+**Description**
+
+- Identifies web technologies in use: server type, framework, CMS, JavaScript libraries, and analytics.
+- Useful for quickly mapping multiple hosts on a subnet to identify interesting targets.
+- Detects WordPress, Joomla, specific PHP versions, nginx vs Apache, and more without making many requests.
+
+**Parameters**
+
+- `--no-errors` — Suppress error messages when scanning multiple hosts.
+- `<TARGET_IP>` — Single IP or CIDR range.
 
 </details>
 
