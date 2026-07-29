@@ -4,10 +4,10 @@
 
 ### Local-network discovery
 
-#### ARP sweep <sup>· PJPT</sup>
+#### ARP host discovery <sup>· PJPT</sup>
 
 ```bash
-sudo arp-scan --localnet
+sudo arp-scan -I <INTERFACE> --localnet
 ```
 
 <details>
@@ -15,32 +15,22 @@ sudo arp-scan --localnet
 
 **Description**
 
-- Finds active IPv4 devices on the directly connected Layer 2 network.
-- Records IP and MAC addresses for reachable hosts.
+- Sends ARP requests to find active IPv4 hosts on the selected local Layer 2 network.
+- Records IP, MAC, and vendor information for responding hosts.
 
 **Parameters**
 
-- `--localnet` — Scans the locally connected network inferred from the active interface.
-</details>
+- `-I <INTERFACE>` — Selects the network interface to use.
+- `--localnet` — Derives the target range from that interface’s IP address and netmask.
 
-#### Active ARP discovery <sup>· PJPT</sup>
+**Alternative tool**
 
 ```bash
-sudo netdiscover -r <IP/MASK>
+sudo netdiscover -i <INTERFACE> -r <IP/MASK>
 ```
 
-<details>
-<summary>Details</summary>
-
-**Description**
-
-- Sends ARP requests across the specified local subnet.
-- Use when the target range is on the current network segment.
-
-**Parameters**
-
-- `-r` — Sets the target range.
-- `<IP/MASK>` — CIDR range on the directly connected network.
+- `-i <INTERFACE>` — Selects the interface for ARP traffic.
+- `-r <IP/MASK>` — Sets the local CIDR range to scan.
 </details>
 
 #### ICMP range sweep <sup>· PJPT</sup>
