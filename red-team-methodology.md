@@ -23,6 +23,8 @@ sudo arp-scan -I <INTERFACE> --localnet
 - `-I <INTERFACE>` — Selects the network interface to use.
 - `--localnet` — Derives the target range from that interface’s IP address and netmask.
 
+</details>
+
 #### Netdiscover ARP discovery <sup>· PJPT</sup>
 
 ```bash
