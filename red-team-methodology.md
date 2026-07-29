@@ -23,17 +23,27 @@ sudo arp-scan -I <INTERFACE> --localnet
 - `-I <INTERFACE>` — Selects the network interface to use.
 - `--localnet` — Derives the target range from that interface’s IP address and netmask.
 
-**Alternative tool**
+#### Netdiscover ARP discovery <sup>· PJPT</sup>
 
 ```bash
 sudo netdiscover -i <INTERFACE> -r <IP/MASK>
 ```
 
+<details>
+<summary>Details</summary>
+
+**Description**
+
+- Sends ARP requests across a specified local subnet.
+- Can also be used for passive ARP reconnaissance.
+
+**Parameters**
+
 - `-i <INTERFACE>` — Selects the interface for ARP traffic.
 - `-r <IP/MASK>` — Sets the local CIDR range to scan.
 </details>
 
-#### ICMP range sweep <sup>· PJPT</sup>
+#### ICMP range sweep <sup>· CPTS</sup>
 
 ```bash
 fping -a -g <IP/MASK> 2>/dev/null
