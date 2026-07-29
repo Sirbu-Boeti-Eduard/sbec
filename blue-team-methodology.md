@@ -67,7 +67,7 @@
 
 ### 1.1 Windows (CMD)
 
-#### 1.1.1 System information <sup>· BTL1</sup>
+#### 1.1.1 System information
 
 ```cmd
 ipconfig /all
@@ -83,7 +83,7 @@ ipconfig /all
 
 </details>
 
-#### 1.1.2 User and service enumeration <sup>· BTL1</sup>
+#### 1.1.2 User and service enumeration
 
 **List running processes:**
 
@@ -123,7 +123,7 @@ sc query | more
 
 </details>
 
-#### 1.1.3 Network connections <sup>· BTL1</sup>
+#### 1.1.3 Network connections
 
 ```cmd
 netstat -ab
@@ -142,7 +142,7 @@ netstat -ab
 
 ### 1.2 Windows (PowerShell)
 
-#### 1.2.1 System and network enumeration <sup>· BTL1</sup>
+#### 1.2.1 System and network enumeration
 
 ```powershell
 Get-NetIPConfiguration
@@ -159,7 +159,7 @@ Get-NetIPAddress
 
 </details>
 
-#### 1.2.2 User and service enumeration <sup>· BTL1</sup>
+#### 1.2.2 User and service enumeration
 
 **List local users:**
 
@@ -190,7 +190,7 @@ Get-Process | Format-Table -View priority
 
 </details>
 
-#### 1.2.3 Scheduled tasks <sup>· BTL1</sup>
+#### 1.2.3 Scheduled tasks
 
 ```powershell
 Get-ScheduledTask
@@ -205,7 +205,7 @@ Get-ScheduledTask
 
 </details>
 
-#### 1.2.4 Zone.Identifier <sup>· BTL1</sup>
+#### 1.2.4 Zone.Identifier
 
 ```powershell
 Get-Content -Path <FILE> -Stream zone.identifier
@@ -222,7 +222,7 @@ Get-Content -Path <FILE> -Stream *
 
 </details>
 
-### 1.3 DeepBlue CLI <sup>· BTL1</sup>
+### 1.3 DeepBlue CLI
 
 ```powershell
 Set-ExecutionPolicy Bypass -Scope CurrentUser
@@ -247,7 +247,7 @@ Set-ExecutionPolicy Bypass -Scope CurrentUser
 
 ### 1.4 Linux
 
-#### 1.4.1 File metadata inspection <sup>· BTL1</sup>
+#### 1.4.1 File metadata inspection
 
 ```bash
 ls -lisap
@@ -276,7 +276,7 @@ For key file paths and their contents, see [5.1 Key File Locations](#51-key-file
 
 ## 2. Threat Intelligence & IOC Lookup
 
-### 2.1 IOC Types <sup>· BTL1</sup>
+### 2.1 IOC Types
 
 | Category | Examples |
 |---|---|
@@ -285,7 +285,7 @@ For key file paths and their contents, see [5.1 Key File Locations](#51-key-file
 | **Domain / URL** | Phishing pages, malware delivery sites, redirectors |
 | **File Hash / Name** | MD5, SHA-1, SHA-256 hashes; malicious file names |
 
-### 2.2 Blocking Methods <sup>· BTL1</sup>
+### 2.2 Blocking Methods
 
 | Method | Targets |
 |---|---|
@@ -338,7 +338,7 @@ For key file paths and their contents, see [5.1 Key File Locations](#51-key-file
 
 ### 4.1 Registry
 
-#### 4.1.1 OS information <sup>· BTL1</sup>
+#### 4.1.1 OS information
 
 **Key:** `HKLM\SOFTWARE\Microsoft\Windows NT\CurrentVersion`
 
@@ -358,7 +358,7 @@ For key file paths and their contents, see [5.1 Key File Locations](#51-key-file
 
 </details>
 
-#### 4.1.2 Computer name <sup>· BTL1</sup>
+#### 4.1.2 Computer name
 
 **Volatile (runtime only):**
 
@@ -382,7 +382,7 @@ HKLM\SYSTEM\CurrentControlSet\Control\ComputerName\ComputerName
 
 </details>
 
-#### 4.1.3 USB device history <sup>· BTL1</sup>
+#### 4.1.3 USB device history
 
 ```
 HKLM\SYSTEM\CurrentControlSet\Enum\USBSTOR
@@ -399,7 +399,7 @@ HKLM\SYSTEM\CurrentControlSet\Enum\USBSTOR
 
 </details>
 
-#### 4.1.4 User persistence (Run key) <sup>· BTL1</sup>
+#### 4.1.4 User persistence (Run key)
 
 ```
 HKU\<User_SID>\SOFTWARE\Microsoft\Windows\CurrentVersion\Run\<Program_Name>
@@ -418,7 +418,7 @@ HKU\<User_SID>\SOFTWARE\Microsoft\Windows\CurrentVersion\Run\<Program_Name>
 
 ### 4.2 Event Logs
 
-#### 4.2.1 Logon events <sup>· BTL1</sup>
+#### 4.2.1 Logon events
 
 | Event ID | Description |
 |---|---|
@@ -452,7 +452,7 @@ HKU\<User_SID>\SOFTWARE\Microsoft\Windows\CurrentVersion\Run\<Program_Name>
 
 </details>
 
-#### 4.2.2 Log file locations <sup>· BTL1</sup>
+#### 4.2.2 Log file locations
 
 **Legacy (Windows XP / Server 2003):**
 
@@ -481,7 +481,7 @@ HKU\<User_SID>\SOFTWARE\Microsoft\Windows\CurrentVersion\Run\<Program_Name>
 
 ### 4.3 File System Artifacts
 
-#### 4.3.1 LNK files <sup>· BTL1</sup>
+#### 4.3.1 LNK files
 
 ```
 C:\Users\<USERNAME>\AppData\Roaming\Microsoft\Windows\Recent
@@ -498,7 +498,7 @@ C:\Users\<USERNAME>\AppData\Roaming\Microsoft\Windows\Recent
 
 </details>
 
-#### 4.3.2 Prefetch <sup>· BTL1</sup>
+#### 4.3.2 Prefetch
 
 ```
 C:\Windows\Prefetch
@@ -523,7 +523,7 @@ PECmd.exe -d C:\Windows\Prefetch -k rows
 
 </details>
 
-#### 4.3.3 Jump Lists <sup>· BTL1</sup>
+#### 4.3.3 Jump Lists
 
 ```
 C:\Users\<USERNAME>\AppData\Roaming\Microsoft\Windows\Recent\AutomaticDestinations
@@ -542,7 +542,7 @@ C:\Users\<USERNAME>\AppData\Roaming\Microsoft\Windows\Recent\CustomDestinations
 
 </details>
 
-#### 4.3.4 Recycle Bin <sup>· BTL1</sup>
+#### 4.3.4 Recycle Bin
 
 ```
 C:\$Recycle.Bin
@@ -571,7 +571,7 @@ RBCmd.exe -d C:\$Recycle.Bin
 
 </details>
 
-#### 4.3.5 WPDNSE <sup>· BTL1</sup>
+#### 4.3.5 WPDNSE
 
 <details>
 <summary>Details</summary>
@@ -582,7 +582,7 @@ RBCmd.exe -d C:\$Recycle.Bin
 
 </details>
 
-### 4.4 Autopsy <sup>· BTL1</sup>
+### 4.4 Autopsy
 
 | Application | Forensic Artifact | Location |
 |---|---|---|
@@ -602,7 +602,7 @@ RBCmd.exe -d C:\$Recycle.Bin
 
 </details>
 
-### 4.5 Process Memory Dumping <sup>· BTL1</sup>
+### 4.5 Process Memory Dumping
 
 ```powershell
 Get-Process | findstr -I "<PROCESS>"
@@ -626,7 +626,7 @@ procdump.exe -ma <PID>
 
 ## 5. Digital Forensics — Linux
 
-### 5.1 Key File Locations <sup>· BTL1</sup>
+### 5.1 Key File Locations
 
 | File | Content |
 |---|---|
@@ -645,7 +645,7 @@ procdump.exe -ma <PID>
 
 </details>
 
-### 5.2 Log Files <sup>· BTL1</sup>
+### 5.2 Log Files
 
 | Log | Purpose |
 |---|---|
@@ -670,7 +670,7 @@ procdump.exe -ma <PID>
 
 </details>
 
-### 5.3 File Carving <sup>· BTL1</sup>
+### 5.3 File Carving
 
 ```bash
 scalpel -o <OUTPUT_DIR> <DISK_IMAGE>
@@ -694,7 +694,7 @@ scalpel -o <OUTPUT_DIR> <DISK_IMAGE>
 
 </details>
 
-### 5.4 Steganography <sup>· BTL1</sup>
+### 5.4 Steganography
 
 **Embed a message:**
 
@@ -908,7 +908,7 @@ exiftool -Comment="<HIDDEN_MESSAGE>" <IMAGE_FILE>
 
 ## 7. Memory Forensics
 
-### 7.1 Volatility 2 <sup>· BTL1</sup>
+### 7.1 Volatility 2
 
 ```bash
 vol.py -f <MEMORY_DUMP> imageinfo
@@ -954,7 +954,7 @@ vol.py -f <MEMORY_DUMP> iehistory
 
 </details>
 
-### 7.2 Volatility 3 <sup>· BTL1</sup>
+### 7.2 Volatility 3
 
 ```bash
 vol.py -f <MEMORY_DUMP> windows.pslist
@@ -986,7 +986,7 @@ vol.py -f <MEMORY_DUMP> windows.dumpfiles --pid <PID>
 
 ## 8. Log Analysis & SIEM
 
-### 8.1 Splunk <sup>· BTL1</sup>
+### 8.1 Splunk
 
 **Search all indexes:**
 
@@ -1050,7 +1050,7 @@ index="*"
 
 </details>
 
-### 8.2 Sysmon & Event Logs <sup>· BTL1</sup>
+### 8.2 Sysmon & Event Logs
 
 **Sysmon download:**
 
@@ -1081,7 +1081,7 @@ index="*"
 
 ## 9. Network Analysis
 
-### 9.1 Wireshark <sup>· BTL1</sup>
+### 9.1 Wireshark
 
 **Filter by IP address:**
 
@@ -1110,7 +1110,7 @@ tcp.window_size_value >= <VALUE>
 
 - Wireshark displays URL-encoded POST bodies as raw strings. Right-click → Show Packet Bytes to decode or copy to CyberChef for URL decoding.
 
-### 9.2 Network Miner <sup>· BTL1</sup>
+### 9.2 Network Miner
 
 <details>
 <summary>Details</summary>
@@ -1132,7 +1132,7 @@ tcp.window_size_value >= <VALUE>
 | [Joe Sandbox](https://www.joesandbox.com/) | Deep automated malware analysis with detailed reports |
 | [Hybrid Analysis](https://www.hybrid-analysis.com) | Free online sandbox by CrowdStrike with Falcon-powered detection |
 
-### 10.2 Analysis Tools <sup>· BTL1</sup>
+### 10.2 Analysis Tools
 
 **BITS Parser:**
 
