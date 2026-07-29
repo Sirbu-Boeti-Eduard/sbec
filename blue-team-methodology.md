@@ -10,11 +10,12 @@
   - `1.2` **Windows (PowerShell)**
     - `1.2.1` System and network enumeration
     - `1.2.2` User and service enumeration
-    - `1.2.3` Scheduled tasks & Zone.Identifier
+    - `1.2.3` Scheduled tasks
+    - `1.2.4` Zone.Identifier
   - `1.3` **DeepBlue CLI**
   - `1.4` **Linux**
-    - `1.4.1` System enumeration
-    - `1.4.2` Key log files
+    - `1.4.1` File metadata inspection
+    - `1.4.2` Log files → see §5
 - `2` **Threat Intelligence & IOC Lookup**
   - `2.1` **IOC Types**
   - `2.2` **Blocking Methods**
@@ -36,9 +37,9 @@
     - `4.3.2` Prefetch
     - `4.3.3` Jump Lists
     - `4.3.4` Recycle Bin
-    - `4.3.5` Zone.Identifier & WPDNSE
+    - `4.3.5` WPDNSE
   - `4.4` **Autopsy**
-  - `4.5` **Memory Dumping**
+  - `4.5` **Process Memory Dumping**
 - `5` **Digital Forensics — Linux**
   - `5.1` **Key File Locations**
   - `5.2` **Log Files**
@@ -189,15 +190,23 @@ Get-Process | Format-Table -View priority
 
 </details>
 
-#### 1.2.3 Scheduled tasks & Zone.Identifier <sup>· BTL1</sup>
-
-**List scheduled tasks:**
+#### 1.2.3 Scheduled tasks <sup>· BTL1</sup>
 
 ```powershell
 Get-ScheduledTask
 ```
 
-**Check Zone.Identifier alternate data stream (files downloaded from internet):**
+<details>
+<summary>Details</summary>
+
+**Description**
+
+- Lists all scheduled tasks on the system; useful for detecting persistence mechanisms.
+- See [4.1.4](#414-user-persistence-run-key) for Registry-based persistence analysis.
+
+</details>
+
+#### 1.2.4 Zone.Identifier <sup>· BTL1</sup>
 
 ```powershell
 Get-Content -Path <FILE> -Stream zone.identifier
@@ -209,8 +218,9 @@ Get-Content -Path <FILE> -Stream *
 
 **Description**
 
-- `Get-ScheduledTask` — Lists all scheduled tasks on the system; useful for detecting persistence mechanisms.
-- Zone.Identifier — Windows attaches this NTFS alternate data stream to files downloaded from the internet. Check it to determine the file's origin (URL, referrer). A missing stream does not guarantee the file wasn't downloaded.
+- Windows attaches a Zone.Identifier NTFS alternate data stream to files downloaded from the internet. Contains the source URL and referrer.
+- A missing stream does not guarantee the file wasn't downloaded — it may have been stripped.
+- See [4.3.5](#435-wpdnse) for WPDNSE, a related malware indicator.
 
 </details>
 
@@ -239,7 +249,7 @@ Set-ExecutionPolicy Bypass -Scope CurrentUser
 
 ### 1.4 Linux
 
-#### 1.4.1 System enumeration <sup>· BTL1</sup>
+#### 1.4.1 File metadata inspection <sup>· BTL1</sup>
 
 ```bash
 ls -lisap
@@ -255,35 +265,16 @@ chown <USER>:<GROUP> <FILE>
 
 - `ls -lisap` — Detailed file listing including inode numbers, sizes, permissions, and hidden files.
 - `stat` — Displays detailed file metadata (access/modify/change timestamps, inode, permissions, ownership).
-- `exiftool` — Extracts comprehensive metadata from files (images, documents, executables).
+- `exiftool` — Extracts comprehensive metadata from files (images, documents, executables). See [5.4](#54-steganography) for steganography-specific usage.
 - `chown` — Changes file ownership; useful when restoring permissions on extracted artifacts.
 
 </details>
 
-#### 1.4.2 Key log files <sup>· BTL1</sup>
+#### 1.4.2 Log files
 
-```bash
-/var/log/auth.log       # Authentication events (successes, failures, sudo usage)
-/var/log/dpkg.log       # Package installation/removal history
-/var/log/btmp           # Failed login attempts (binary, read with `lastb`)
-/var/log/cron           # Cron job execution records
-/var/log/secure         # Security and authentication messages (RHEL/CentOS)
-/var/log/faillog        # Failed login records (binary, read with `faillog`)
-/var/log/apache2/access.log  # Apache HTTP access logs
-~/.bash_history         # Shell command history
-```
+For log file locations and descriptions, see [5.2 Log Files](#52-log-files).
 
-<details>
-<summary>Details</summary>
-
-**Description**
-
-- Centrally important log locations for Linux incident response and forensic investigation.
-- `auth.log` / `secure` reveal authentication events (password changes, sudo, brute-force patterns).
-- `dpkg.log` tracks which packages were installed or removed and when.
-- `.bash_history` may contain commands executed by the user or attacker.
-
-</details>
+For key file paths and their contents, see [5.1 Key File Locations](#51-key-file-locations).
 
 ## 2. Threat Intelligence & IOC Lookup
 
@@ -582,20 +573,15 @@ RBCmd.exe -d C:\$Recycle.Bin
 
 </details>
 
-#### 4.3.5 Zone.Identifier & WPDNSE <sup>· BTL1</sup>
-
-```powershell
-Get-Content -Path <FILE> -Stream zone.identifier
-```
+#### 4.3.5 WPDNSE <sup>· BTL1</sup>
 
 <details>
 <summary>Details</summary>
 
 **Description**
 
-- **Zone.Identifier** — NTFS alternate data stream attached to files downloaded from the internet. Contains the source URL and referrer.
-- `Get-Content -Stream *` lists all ADS streams on a file.
-- **WPDNSE** — Windows Portable Device Namespace Extension. If found under `AppData\Roaming` instead of the expected `Temp` directory, it may indicate malware activity related to mobile device enumeration.
+- Windows Portable Device Namespace Extension. If found under `AppData\Roaming` instead of the expected `Temp` directory, it may indicate malware activity related to mobile device enumeration.
+- Check Zone.Identifier alternate data streams on suspicious files with the commands in [1.2.4](#124-zoneidentifier).
 
 </details>
 
@@ -619,19 +605,11 @@ Get-Content -Path <FILE> -Stream zone.identifier
 
 </details>
 
-### 4.5 Memory Dumping <sup>· BTL1</sup>
-
-**Dump a specific process with procdump:**
+### 4.5 Process Memory Dumping <sup>· BTL1</sup>
 
 ```powershell
 Get-Process | findstr -I "<PROCESS>"
 procdump.exe -ma <PID>
-```
-
-**Windows privilege escalation enumeration:**
-
-```powershell
-.\winPEAS.exe
 ```
 
 <details>
@@ -639,10 +617,13 @@ procdump.exe -ma <PID>
 
 **Description**
 
-- `procdump` (Sysinternals) creates a memory dump of a running process for offline analysis with Volatility or Mimikatz.
+- `procdump` (Sysinternals) creates a memory dump of a running process for offline analysis with Volatility (see [7. Memory Forensics](#7-memory-forensics)) or Mimikatz.
+- `findstr -I` performs a case-insensitive search for the target process name before dumping.
+
+**Parameters**
+
 - `-ma` — Full memory dump.
-- `-I` (findstr) — Case-insensitive search for the process name.
-- WinPEAS enumerates potential privilege escalation vectors on a compromised Windows host.
+- `<PID>` — Process ID obtained from `Get-Process` or `tasklist`.
 
 </details>
 
@@ -655,7 +636,6 @@ procdump.exe -ma <PID>
 | `/etc/passwd` | Local user accounts (no passwords on modern systems) |
 | `/etc/shadow` | Hashed passwords (requires root to read) |
 | `/var/lib/dpkg/status` | Installed package list and versions (Debian/Ubuntu) |
-| `~/.bash_history` | Shell command history per user |
 
 <details>
 <summary>Details</summary>
@@ -664,7 +644,7 @@ procdump.exe -ma <PID>
 
 - `/etc/shadow` — Contains the actual password hashes. If readable by non-root, the system is misconfigured.
 - `/var/lib/dpkg/status` — Equivalent to `rpm -qa` on RHEL systems; reveals installed software for vulnerability assessment.
-- `.bash_history` — May be deleted or symlinked to `/dev/null` by attackers to hide activity.
+- Shell command history is covered under [5.2 Log Files](#52-log-files).
 
 </details>
 
@@ -679,6 +659,7 @@ procdump.exe -ma <PID>
 | `/var/log/cron` | Cron job execution |
 | `/var/log/faillog` | Failed login records (binary; use `faillog`) |
 | `/var/log/apache2/access.log` | Apache HTTP access log |
+| `~/.bash_history` | Shell command history per user |
 
 <details>
 <summary>Details</summary>
@@ -688,6 +669,7 @@ procdump.exe -ma <PID>
 - `lastb` reads `/var/log/btmp` and shows failed login attempts with source IPs.
 - `faillog` reads `/var/log/faillog` and displays per-user failure counts and timestamps.
 - Apache access logs may contain evidence of web-based attacks (SQL injection, path traversal, command injection).
+- `.bash_history` — May be deleted or symlinked to `/dev/null` by attackers to hide activity.
 
 </details>
 
@@ -1158,7 +1140,7 @@ tcp.window_size_value >= <VALUE>
 **BITS Parser:**
 
 ```bash
-BitsParser.py --carveall > output.txt
+BitsParser.py --carveall > <OUTPUT_FILE>
 BitsParser.py --carvedb
 ```
 
