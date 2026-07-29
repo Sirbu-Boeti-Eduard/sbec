@@ -29,8 +29,6 @@ A threat actor has compromised a system and hidden a number of files. The invest
 
 The required files are located in the BTLO VM’s `Investigation` directory.
 
-> **Lab-safety note:** Treat the collected sample and every matching file as untrusted. Generate and test rules inside the isolated BTLO VM, review automatically generated signatures before operational use, and avoid uploading private or sensitive samples to a third-party analysis service.
-
 ## Investigation approach
 
 The workflow separates rule creation from rule validation:
@@ -228,14 +226,6 @@ The correct lesson is not simply to make a rule less strict. Boolean changes sho
 | Hash enrichment | Existing report labels the source sample as Snake Keylogger | Adds external context to the collected sample |
 | Custom IOC rule | Identifies hidden and image-based artifacts | Demonstrates translating supplied strings and size into YARA conditions |
 | Rule tuning | Exposes size-only false positives | Demonstrates why match explanation is part of rule validation |
-
-## Investigation limitations
-
-- yarGen output is a starting point and should be reviewed before operational deployment.
-- A YARA match proves that the condition evaluated to true; it does not independently prove compromise or malware execution.
-- Public sandbox classifications can differ between engines and over time.
-- The Part Two diagnostic condition intentionally creates false positives and should not be deployed as written.
-- The captured Trevor output contains two files with IOC strings, so the room answer is not uniquely established by this output alone.
 
 ## Key takeaways
 

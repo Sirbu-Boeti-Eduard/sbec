@@ -20,8 +20,6 @@ Hello, my name is Sirbu-Boeti Eduard-Cristian and in this write-up I am going to
 | Focus areas | Email triage, header analysis, infrastructure enrichment, SPF and DMARC, static attachment triage |
 | Tools demonstrated | Email source viewer, CyberChef, WHOIS, DNS lookup services, and Linux command-line utilities |
 
-> **Safety note:** Treat every attachment obtained from a suspicious email as untrusted. Work from a copy, record a cryptographic hash before deeper analysis, and do not execute the file on a normal workstation.
-
 ## Investigation approach
 
 A useful phishing-analysis workflow moves from low-risk observations to progressively deeper evidence:
@@ -47,8 +45,6 @@ Simply open the email and check it:
 ![Email content showing the interbank transfer reference field in context.](../../assets/images/tryhackme-the-greenholt-phish-001.jpeg)
 
 The subject and message body provide the first pieces of context. In a real investigation, record the value exactly as displayed, but also preserve the original message so it can later be compared with the raw `Subject` header.
-
-> **Analyst mindset:** At this stage, the transfer reference is an identifier supplied by the sender. It may help correlate messages or related artifacts, but it does not establish that the payment request is legitimate.
 
 ### 2. Who is the email from?
 
@@ -180,8 +176,6 @@ sha256sum <attachment>
 
 SHA-256 provides a stable identifier for the exact file contents. Record it before making changes so results from other tools, sandboxes, or threat-intelligence sources can be correlated with the same sample.
 
-> **Limitation:** A hash match can identify a previously observed file, but the absence of a reputation result does not make a file safe. Even a one-byte change produces a different cryptographic hash.
-
 ### 11. What is the attachments file size? (Don’t forget to add “KB” to your answer, **NUM KB**)
 
 Paying attention to the following: “**The binary system measures a kilobyte as 1,024 bytes, whereas the decimal system measures a kilobyte as an even 1,000 bytes**.”
@@ -219,8 +213,6 @@ xxd -l 16 <attachment>
 
 The `file` utility compares the file's contents with known signatures instead of trusting its name. Examining the first bytes provides an additional way to confirm whether the magic value is consistent with the detected type.
 
-> **Analyst mindset:** A mismatch between the displayed extension and the detected content type is an important anomaly, but file identification alone is not a malware verdict. It determines what the object appears to be and guides the next safe analysis step.
-
 ## Findings and analytical flow
 
 | Investigation phase | Evidence examined | Outcome |
@@ -231,17 +223,6 @@ The `file` utility compares the file's contents with known signatures instead of
 | Attachment triage | Filename, SHA-256, byte size, and file signature | Established reproducible identifiers and the attachment's apparent content type without executing it |
 
 The flow matters because each stage builds on evidence collected earlier. Visible sender information produces hypotheses. Raw headers provide routing context. Infrastructure and DNS lookups add independent context. Static attachment triage then records the file safely and determines which deeper analysis techniques would be appropriate.
-
-## Investigation limitations
-
-- Header fields can be forged when they are not added by a trusted system.
-- WHOIS registration identifies network allocation, not the person operating a host.
-- Published SPF and DMARC records do not, by themselves, show whether this message passed authentication.
-- A filename and extension are untrusted metadata.
-- Static file identification does not determine whether a file is malicious.
-- This investigation does not include attachment execution or dynamic malware analysis.
-
-These limitations prevent the evidence from supporting claims that go beyond what was actually observed.
 
 ## Key takeaways
 

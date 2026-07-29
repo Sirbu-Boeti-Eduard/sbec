@@ -20,8 +20,6 @@ Hello, my name is Sirbu-Boeti Eduard-Cristian and in this write-up I am going to
 | Focus areas | Evidence validation, Windows artifacts, user activity, PowerShell history, and threat artifacts |
 | Tools demonstrated | Autopsy case information, extracted results, keyword search, and file-content views |
 
-> **Evidence-handling note:** In a real investigation, the source image should remain read-only. Findings should be recorded with their source path, relevant timestamps, and enough context for another analyst to reproduce them. A displayed hash is useful for identification, but it should be compared with a hash independently calculated during acquisition or verification.
-
 ## Investigation approach
 
 The investigation moves from broad system context to progressively narrower artifacts:
@@ -195,13 +193,6 @@ The evidence forms a connected sequence rather than a collection of isolated sea
 5. Tool names, YARA metadata, and exploit terminology provide pivots into security-related files.
 
 This flow keeps each conclusion tied to an artifact and makes the examination reproducible. When one expected source does not answer a question, the next step is to identify another artifact created by the same operating-system feature, application, or user action.
-
-## Investigation limitations
-
-- This lab walkthrough relies on artifacts parsed and presented by Autopsy. Parser output should be checked against the underlying file, registry hive, or database when a conclusion is significant.
-- A timestamp is not meaningful without its source field, time-zone context, and an understanding of what caused that field to change.
-- Application configuration may describe a past state rather than the system state at acquisition time.
-- Tool names and rule metadata are investigative leads; hashes, signatures, execution traces, and surrounding context provide stronger attribution.
 
 ## Key takeaways
 

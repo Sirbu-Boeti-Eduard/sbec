@@ -290,15 +290,6 @@ One invalid login submission produced a password-specific response associated wi
 
 This marked the investigation boundary. [Article 360 of Romania's Criminal Code](https://legislatie.just.ro/Public/DetaliiDocument/269777) addresses access to a computer system without right. [Constitutional Court Decision 183/2018](https://legislatie.just.ro/Public/DetaliiDocumentAfis/201454) explains that acting without right includes acting without authorization, exceeding the limits of authorization, or operating without permission from the person or organization entitled to grant it. Because I did not have authorization to test the WordPress instance, I made no additional credential attempts and did not access the administrative area.
 
-## Scope and limitations
-
-- The Romanian Post lure and SwissPass deployment were separate findings on a shared hosting platform; the available evidence does not connect their operators.
-- The live browser session and recovered source showed slightly different SwissPass workflows. Both are reported, but the archive should not be treated as an exact record of every live request.
-- The form submissions used synthetic test data. No victim data was identified or validated during this investigation.
-- The recovered code shows intended collection and transmission behavior. It does not prove that email or Telegram delivery succeeded.
-- Public pages, directory listings, an exposed archive, and third-party scan records formed the evidence base. No administrative access to the hosting environment was obtained.
-- Historical network indicators, metadata, and source-code artifacts do not identify the operator.
-
 ## Conclusion
 
 The investigation preserved a Romanian Post smishing redirect and then examined a separate SwissPass-themed phishing deployment discovered on the same hosting platform. The live SwissPass session requested three categories of information: account credentials, payment-card details, and an SMS verification code. The recovered source was designed to support an additional verification-code stage before redirecting a visitor to the legitimate service.

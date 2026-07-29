@@ -27,8 +27,6 @@ Hello, my name is Sirbu-Boeti Eduard-Cristian and in this write-up I am going to
 
 The lab provides a sample named `Basilisk.bin` and asks the analyst to characterize it through static analysis. The investigation focuses on what can be learned from printable strings, Portable Executable metadata, imported functions, entropy, and cryptographic identification without running the sample.
 
-> **Lab-safety note:** Treat `Basilisk.bin` as malicious. Keep the sample in the isolated BTLO environment, calculate a hash before further analysis, and do not execute it on a production or personal system. The tools used here inspect the file statically; they do not make the sample safe.
-
 ## Investigation approach
 
 A structured static-analysis workflow moves from identification to capabilities:
@@ -219,15 +217,6 @@ This is the timestamp stored in the PE header, commonly described as a compile t
 | Packing result | Expected answer: No; entropy `4.63` | Two heuristics say not packed; fast check disagrees |
 | SHA-256 | `8DD96E84B444E5F9C0814F042DD1F679E20656354BC57F7B4A9439E66E426D66` | Stable identifier for the analyzed sample |
 | PE timestamp | `2008-10-10 15:49:18 UTC` | Untrusted header metadata requiring corroboration |
-
-## Investigation limitations
-
-- This investigation is based on static analysis. The sample was not executed, so no imported capability was observed at runtime.
-- Printable strings may be unused, misleading, or dynamically constructed; `39upd.dll` remains a lead rather than a confirmed loaded module.
-- Imports reveal available functions but not their arguments, calling sequence, or operational intent.
-- PEiD’s packing checks disagree, so the lab classification should be validated with additional structural inspection or a second tool.
-- The PE timestamp is user-controlled metadata and is not a trustworthy creation time without corroboration.
-- The retained evidence does not include a disassembly, control-flow analysis, network capture, process trace, or Registry diff.
 
 ## Key takeaways
 

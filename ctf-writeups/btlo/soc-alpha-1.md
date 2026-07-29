@@ -22,8 +22,6 @@ Hello, my name is Sirbu-Boeti Eduard-Cristian and in this write-up I am going to
 | Focus areas | Alert scoping, PowerShell download activity, file creation, Registry persistence, and scheduled tasks |
 | Tools demonstrated | Kibana Discover, Elastic index patterns, Windows event logs, and Sysmon telemetry |
 
-> **Lab-safety note:** Keep the investigation VM isolated and treat executable paths, scripts, and network indicators as untrusted. Preserve suspicious URLs in a defanged form, such as `hxxps[://]example[.]com`, and do not retrieve or execute a payload outside an authorized lab.
-
 ## Investigation approach
 
 Each alert begins with three scoping details from `README.txt`: a time window, a data source or index pattern, and a detection rule. I use those details to reduce the dataset before interpreting individual events.
@@ -61,8 +59,6 @@ Alert 1 lists three candidate indicators:
 - [`Invoke-WebRequest`](https://learn.microsoft.com/en-us/powershell/module/microsoft.powershell.utility/invoke-webrequest?view=powershell-7.4) is a PowerShell cmdlet for sending HTTP and HTTPS requests.
 
 The first two are [.NET](https://learn.microsoft.com/en-us/dotnet/core/introduction) methods, but PowerShell can still invoke them through a `System.Net.WebClient` object. `Invoke-WebRequest`, by contrast, is itself a cmdlet. The decisive evidence is therefore not the rule label but the command or script-block content recorded in the matching event.
-
-> **Analyst mindset:** A rule name is a lead, not the conclusion. First identify which part of the rule matched, then read the surrounding command in its original event.
 
 ### Question 2: Alert 1 (2/2) — What is the full URL from which the file is downloaded?
 
@@ -259,14 +255,6 @@ For Alert 4:
 | Scheduled-task persistence | `schtasks.exe /Create` command line | A named recurring task was configured with a target program | Task Scheduler events, task XML, and execution history |
 
 The most useful investigative pivot is the relationship between artifacts. The PowerShell event identifies a source and destination; the file-creation event shows a similarly named executable entering an autostart location; the Registry and scheduled-task events reveal two additional persistence paths. Each event answers one part of the sequence, while correlation makes the overall conclusion stronger.
-
-## Investigation limitations
-
-- A command line shows intent and invocation, but not necessarily successful completion.
-- A file-creation or Registry-value event confirms a change, but not that the persisted program later executed.
-- Similar events can be duplicates or separate records from different channels; compare stable identifiers before discarding them.
-- Time-window accuracy depends on the configured time zone and ingestion timestamps.
-- Field names shown in this lab reflect its Elastic pipeline and may differ in another environment.
 
 ## Key takeaways
 

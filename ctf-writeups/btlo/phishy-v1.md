@@ -27,8 +27,6 @@ Hello, my name is Sirbu-Boeti Eduard-Cristian and in this write-up I am going to
 
 The lab presents a phishing URL and asks the analyst to examine the website, identify how the page was assembled, and recover intelligence about the kit and its operator-facing configuration.
 
-> **Lab-safety note:** This write-up documents a historical, authorized BTLO environment. Phishing infrastructure and kit files must be treated as untrusted. Perform analysis in an isolated VM, use static copies wherever possible, never submit real credentials, and do not browse, download, or interact with third-party infrastructure without authorization. Potentially harmful URLs are defanged below.
-
 ## Investigation approach
 
 The investigation follows the phishing page from its visible presentation to its underlying behavior:
@@ -208,13 +206,6 @@ POST parameter names must match exactly. Because the client and server use diffe
 | Query-value function | `getTime()` | JavaScript redirect expression |
 | Intended redirect | `office[.]com` | JavaScript in `jeff.php` |
 | Breaking error | Form sends `userrr`/`passss`; PHP reads `user1`/`pass1` | Comparison of HTML inputs and PHP POST keys |
-
-## Investigation limitations
-
-- The findings are based on retained lab screenshots rather than a preserved copy of every source file and HTTP response.
-- No DNS history, WHOIS data, TLS certificate data, server logs, or hosting-provider records were preserved for infrastructure correlation.
-- The configured mailbox, IP address, filenames, and code comments are indicators. None independently establishes actor identity or campaign attribution.
-- The infrastructure may no longer exist or may have changed ownership; the defanged values should not be reactivated for testing.
 
 ## Key takeaways
 
