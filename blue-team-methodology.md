@@ -202,7 +202,6 @@ Get-ScheduledTask
 **Description**
 
 - Lists all scheduled tasks on the system; useful for detecting persistence mechanisms.
-- See [4.1.4](#414-user-persistence-run-key) for Registry-based persistence analysis.
 
 </details>
 
@@ -220,7 +219,6 @@ Get-Content -Path <FILE> -Stream *
 
 - Windows attaches a Zone.Identifier NTFS alternate data stream to files downloaded from the internet. Contains the source URL and referrer.
 - A missing stream does not guarantee the file wasn't downloaded — it may have been stripped.
-- See [4.3.5](#435-wpdnse) for WPDNSE, a related malware indicator.
 
 </details>
 
@@ -265,7 +263,7 @@ chown <USER>:<GROUP> <FILE>
 
 - `ls -lisap` — Detailed file listing including inode numbers, sizes, permissions, and hidden files.
 - `stat` — Displays detailed file metadata (access/modify/change timestamps, inode, permissions, ownership).
-- `exiftool` — Extracts comprehensive metadata from files (images, documents, executables). See [5.4](#54-steganography) for steganography-specific usage.
+- `exiftool` — Extracts comprehensive metadata from files (images, documents, executables).
 - `chown` — Changes file ownership; useful when restoring permissions on extracted artifacts.
 
 </details>
@@ -581,7 +579,6 @@ RBCmd.exe -d C:\$Recycle.Bin
 **Description**
 
 - Windows Portable Device Namespace Extension. If found under `AppData\Roaming` instead of the expected `Temp` directory, it may indicate malware activity related to mobile device enumeration.
-- Check Zone.Identifier alternate data streams on suspicious files with the commands in [1.2.4](#124-zoneidentifier).
 
 </details>
 
@@ -617,7 +614,7 @@ procdump.exe -ma <PID>
 
 **Description**
 
-- `procdump` (Sysinternals) creates a memory dump of a running process for offline analysis with Volatility (see [7. Memory Forensics](#7-memory-forensics)) or Mimikatz.
+- `procdump` (Sysinternals) creates a memory dump of a running process for offline analysis with Volatility (see [7. Memory Forensics](#7-memory-forensics)).
 - `findstr -I` performs a case-insensitive search for the target process name before dumping.
 
 **Parameters**
