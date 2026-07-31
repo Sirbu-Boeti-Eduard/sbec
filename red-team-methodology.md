@@ -18,6 +18,10 @@
   - `2.1` **Nmap**
     - `2.1.1` Aggressive all-port scan
     - `2.1.2` SYN stealth with default scripts
+    - `2.1.3` **IDS/IPS evasion**
+      - `2.1.3.1` Decoy scan (-D RND)
+      - `2.1.3.2` Spoofed source IP (-S)
+      - `2.1.3.3` DNS source port (--source-port 53)
   - `2.2` **SNMP Enumeration**
     - `2.2.1` snmpwalk community string query
     - `2.2.2` onesixtyone community string brute force
@@ -26,6 +30,12 @@
     - `2.3.2` gobuster DNS subdomain enumeration
     - `2.3.3` curl banner grabbing
     - `2.3.4` whatweb technology fingerprinting
+    - `2.3.5` ncat banner grabbing
+    - `2.3.6` crt.sh certificate transparency log query
+  - `2.4` **Vulnerability Assessment**
+    - `2.4.1` Nmap NSE --script vuln
+  - `2.5` **DNS Enumeration**
+    - `2.5.1` dig version.bind CHAOS TXT
 - `3` **Initial Attack Vectors**
   - `3.1` **LLMNR/NBT-NS Poisoning**
     - `3.1.1` Responder hash capture
@@ -37,9 +47,12 @@
   - `3.3` **IPv6 mitm6 Attack**
     - `3.3.1` mitm6
     - `3.3.2` impacket-ntlmrelayx (IPv6 relay)
-  - `3.4` **SMB Share Enumeration**
-    - `3.4.1` smbclient share listing
-    - `3.4.2` crackmapexec share enumeration
+   - `3.4` **SMB Share Enumeration**
+     - `3.4.1` smbclient share listing
+     - `3.4.2` crackmapexec share enumeration
+     - `3.4.3` rpcclient null session enumeration
+     - `3.4.4` enum4linux-ng enumeration
+     - `3.4.5` smbmap share enumeration
   - `3.5` **SMB Share File-Based Attacks**
     - `3.5.1` Upload .scf / .lnk files
 - `4` **Lateral Movement & Shell Access**
@@ -314,6 +327,90 @@ nmap -T4 -p- -sS -sC <IP/MASK>
 
 </details>
 
+#### 2.1.3 IDS/IPS evasion
+
+##### 2.1.3.1 Decoy scan (-D RND)
+
+```bash
+sudo nmap <TARGET_IP> -p <PORT> -sS -Pn -n --disable-arp-ping -D RND:5
+```
+
+<details>
+<summary>Details</summary>
+
+**Description**
+
+- Nmap generates random IP addresses inserted into the IP header to disguise the origin of the scan.
+- The real IP is randomly placed among the decoys, making it harder for an IPS to pinpoint and block the attacker.
+- Decoys must be alive — if they are down, the target may treat the traffic as a SYN flood and drop replies.
+- Works with SYN, ACK, ICMP, and OS detection scans.
+
+**Parameters**
+
+- `-sS` — SYN stealth scan.
+- `-Pn` — Disables ICMP echo discovery.
+- `-n` — Disables DNS resolution.
+- `--disable-arp-ping` — Prevents ARP probes.
+- `-D RND:5` — Generates five random decoy IPs; the real IP is placed randomly among them.
+
+**Reference:** https://nmap.org/book/man-bypass-firewalls-ids.html
+
+</details>
+
+##### 2.1.3.2 Spoofed source IP (-S)
+
+```bash
+sudo nmap <TARGET_IP> -n -Pn -p <PORT> -O -S <SPOOFED_IP> -e <INTERFACE>
+```
+
+<details>
+<summary>Details</summary>
+
+**Description**
+
+- Spoofs the source IP to impersonate a trusted host or test firewall rules from a different subnet perspective.
+- Useful when a specific IP range is whitelisted — a port shown as `filtered` from your real IP may appear `open` when spoofing an internal or trusted address.
+- Requires the `-e` flag to bind the scan to the interface that can route the spoofed IP.
+
+**Parameters**
+
+- `-n` — Disables DNS resolution.
+- `-Pn` — Disables ICMP echo discovery.
+- `-O` — Enables OS detection.
+- `-S <SPOOFED_IP>` — Source IP to impersonate.
+- `-e <INTERFACE>` — Network interface to send packets through (e.g. `tun0`).
+
+**Reference:** https://nmap.org/book/man-bypass-firewalls-ids.html
+
+</details>
+
+##### 2.1.3.3 DNS source port (--source-port 53)
+
+```bash
+sudo nmap <TARGET_IP> -p <PORT> -sS -Pn -n --disable-arp-ping --source-port 53
+```
+
+<details>
+<summary>Details</summary>
+
+**Description**
+
+- Port 53 (DNS) is almost never filtered — firewalls assume it's legitimate name resolution traffic.
+- By setting `--source-port 53`, scan packets appear as DNS traffic, bypassing firewall rules that would otherwise block the target port.
+- **Limitation:** `--source-port` only applies to raw socket scans (`-sS`, `-sA`, `-sU`). It does **not** affect version detection (`-sV`), NSE scripts, or TCP connect scans (`-sT`) — those use the OS `connect()` syscall with ephemeral ports. Use `ncat --source-port 53` or `iptables` SNAT rules to force the source port for those.
+
+**Parameters**
+
+- `-sS` — SYN stealth scan.
+- `-Pn` — Disables ICMP echo discovery.
+- `-n` — Disables DNS resolution.
+- `--disable-arp-ping` — Prevents ARP probes.
+- `--source-port 53` — Sets the source port to 53 (DNS), making the traffic appear as DNS queries.
+
+**Reference:** https://nmap.org/book/man-bypass-firewalls-ids.html
+
+</details>
+
 ### 2.2 SNMP Enumeration
 
 #### 2.2.1 snmpwalk community string query
@@ -468,6 +565,126 @@ whatweb --no-errors <IP/MASK>
 
 - `--no-errors` — Suppress error messages when scanning multiple hosts.
 - `<TARGET_IP>` — Single IP or CIDR range.
+
+</details>
+
+#### 2.3.5 ncat banner grabbing
+
+```bash
+ncat -nv <TARGET_IP> <PORT>
+```
+
+**With source port spoofing (firewall bypass):**
+
+```bash
+sudo ncat -nv --source-port 53 <TARGET_IP> <PORT>
+```
+
+<details>
+<summary>Details</summary>
+
+**Description**
+
+- Connects to an open port and reads the service banner, revealing the software name and version.
+- Useful when Nmap `-sV` fails to identify the service or as a quick manual check.
+- Works with any TCP service that sends a banner on connect (HTTP, FTP, SMTP, SSH, etc.).
+- The `--source-port` variant makes the connection originate from port 53, bypassing firewalls that trust DNS traffic.
+
+**Parameters**
+
+- `-n` — Disables DNS resolution.
+- `-v` — Verbose output (shows the connection and banner).
+- `--source-port 53` — Sets the source port to 53 (DNS); use `sudo` to bind privileged ports.
+- `<TARGET_IP>` — Target IP address.
+- `<PORT>` — Target port to connect to.
+
+</details>
+
+#### 2.3.6 crt.sh certificate transparency log query
+
+```bash
+curl -s "https://crt.sh/?q=<DOMAIN>&output=json" | jq -r '.[].name_value' | sort -u
+```
+
+<details>
+<summary>Details</summary>
+
+**Description**
+
+- Pulls subdomain names from Certificate Transparency (CT) logs via the crt.sh database (RFC 6962).
+- CT is a public, auditable log of every TLS certificate issued by certificate authorities, so this surfaces real subdomains without touching the target.
+- Passive and stealthy: no traffic hits the target — great for initial recon before active scans.
+- Wildcard certs return `*.example.com`; deduplicate with `sort -u`.
+- For a single base domain, add `&exclude=expired` to filter out expired certs, or use the `%25` wildcard: `https://crt.sh/?q=%25.example.com` to catch subdomains of subdomains.
+
+**Parameters**
+
+- `-s` — Silent mode (no progress bar).
+- `-q <DOMAIN>` — Target domain (e.g. `example.com`).
+- `output=json` — Returns machine-readable JSON instead of HTML.
+- `jq -r '.[].name_value'` — Extracts the subject name(s) from each cert entry.
+- `sort -u` — Deduplicates and sorts the resulting subdomain list.
+
+**Reference:** https://crt.sh
+
+</details>
+
+### 2.4 Vulnerability Assessment
+
+#### 2.4.1 Nmap NSE --script vuln
+
+```bash
+sudo nmap <TARGET_IP> -p <PORT> -sV --script vuln
+```
+
+<details>
+<summary>Details</summary>
+
+**Description**
+
+- Runs all NSE scripts in the `vuln` category against the specified service.
+- Interacts with the target service, inspects version banners, and cross-references vulnerability databases to surface known CVEs, default credentials, and web application weaknesses.
+- Nmap offers many other NSE categories; see the full list at https://nmap.org/nsedoc/index.html
+
+**Parameters**
+
+- `-p <PORT>` — Specifies the port to scan (e.g. `80`).
+- `-sV` — Enables service version detection.
+- `--script vuln` — Executes all NSE scripts belonging to the vulnerability category.
+
+**Reference:** https://nmap.org/nsedoc/index.html
+
+</details>
+
+### 2.5 DNS Enumeration
+
+#### 2.5.1 dig version.bind CHAOS TXT
+
+```bash
+dig @<TARGET_IP> version.bind CHAOS TXT
+```
+
+<details>
+<summary>Details</summary>
+
+**Description**
+
+- Queries the DNS server for its version string via the `version.bind` pseudo-domain in the CHAOS class.
+- Most DNS servers (BIND, dnsmasq, etc.) respond with their daemon version — useful for identifying outdated software.
+- Passive enough to blend in; much faster than an Nmap service scan on UDP 53.
+
+**Parameters**
+
+- `@<TARGET_IP>` — DNS server to query.
+- `version.bind` — Pseudo-domain that BIND and most DNS servers expose for version disclosure.
+- `CHAOS` — Query class (CH) repurposed by BIND as an internal management channel.
+- `TXT` — Record type; the version is returned as a TXT resource record.
+
+**Fallback (if dig returns nothing):**
+
+```bash
+sudo nmap <TARGET_IP> -p 53 -sU -sV -Pn -n
+```
 
 </details>
 
@@ -730,6 +947,91 @@ crackmapexec smb <IP/MASK> -d <DOMAIN> -u <USERNAME> -p <PASSWORD> --shares
 
 - `<IP/MASK>` — Target IP or CIDR range.
 - `--shares` — Enumerates shares and access permissions.
+
+</details>
+
+#### 3.4.3 rpcclient null session enumeration
+
+```bash
+rpcclient -U "" <TARGET_IP>
+```
+
+<details>
+<summary>Details</summary>
+
+**Description**
+
+- Performs MS-RPC functions against the SMB server, letting us query domains, users, groups, and shares — often anonymously via a null session.
+- Sends specific requests instead of relying on Nmap's slow NSE scans, revealing far more detail.
+- Once connected interactively, run the queries below.
+
+**Common queries**
+
+| Query | Description |
+|---|---|
+| `srvinfo` | Server information |
+| `enumdomains` | Enumerate all domains in the network |
+| `querydominfo` | Domain, server, and user information |
+| `netshareenumall` | Enumerate all available shares |
+| `netsharegetinfo <share>` | Details on a specific share (incl. DACL) |
+| `enumdomusers` | Enumerate all domain users |
+| `queryuser <RID>` | Information about a specific user |
+| `querygroup <RID>` | Information about a specific group |
+
+**Parameters**
+
+- `-U ""` — Connect with an empty username (null session).
+- `-N` — Skip the password prompt.
+- `-c "<command>"` — Run a single rpcclient command non-interactively.
+
+</details>
+
+#### 3.4.4 enum4linux-ng enumeration
+
+```bash
+enum4linux-ng.py <TARGET_IP> -A
+```
+
+<details>
+<summary>Details</summary>
+
+**Description**
+
+- Next-gen rewrite of enum4linux that automates rpcclient queries — srvinfo, enumdomusers, netshareenumall, password/lockout policy, share access checks, NetBIOS names, SMB dialects.
+- `-A` runs all basic and extended enumeration in one command.
+
+**Parameters**
+
+- `-A` — All mode: users, groups, shares, policies, printers.
+- `-u <USER>` / `-p <PASS>` — Credentials for authenticated enumeration (deeper results).
+
+</details>
+
+#### 3.4.5 smbmap share enumeration
+
+```bash
+smbmap -H <TARGET_IP>
+```
+
+**With credentials:**
+
+```bash
+smbmap -H <TARGET_IP> -d <DOMAIN> -u <USERNAME> -p <PASSWORD>
+```
+
+<details>
+<summary>Details</summary>
+
+**Description**
+
+- Enumerates SMB shares and reports effective permissions (READ, WRITE, NO ACCESS).
+- `-r <SHARE>` recursively lists a share's contents; supports file search and SMB command execution.
+
+**Parameters**
+
+- `-H <TARGET_IP>` — Target host.
+- `-d <DOMAIN>` — Domain or workgroup.
+- `-u` / `-p` — Credentials for authenticated enumeration.
 
 </details>
 
@@ -1937,3 +2239,6 @@ dpkg -l 2>/dev/null || rpm -qa
 | [GTFOBins](https://gtfobins.github.io/) | Exploitable sudo/SUID/SGID binaries on Linux |
 | [LOLBAS](https://lolbas-project.github.io/) | Living-off-the-land binaries on Windows |
 | [PayloadsAllTheThings](https://github.com/swisskyrepo/PayloadsAllTheThings) | Comprehensive privesc techniques for both OSes |
+| [Shodan](https://www.shodan.io/) | Search engine for internet-connected devices, exposed services, and banners |
+| [crt.sh](https://crt.sh/) | Certificate Transparency log search for passive subdomain discovery |
+| [GrayHatWarfare](https://grayhatwarfare.com/) | Search engine for exposed AWS, Azure, and GCP cloud storage buckets; sort/filter by file format |
