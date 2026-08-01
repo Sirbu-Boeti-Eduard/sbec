@@ -113,7 +113,8 @@
     - `8.2.7` Writable PATH directories
     - `8.2.8` Installed software
     - `8.2.9` NFS no_root_squash privilege escalation
-  - `8.3` **Useful Resources
+  - `8.3` **Privesc Resources**
+- `9` **Useful Resources**
 
 ## 1. Host Discovery
 
@@ -2347,7 +2348,7 @@ cd <mounted_share>
 
 </details>
 
-### 8.3 Useful Resources
+### 8.3 Privesc Resources
 
 | Resource | Purpose |
 |---|---|
@@ -2356,6 +2357,11 @@ cd <mounted_share>
 | [GTFOBins](https://gtfobins.github.io/) | Exploitable sudo/SUID/SGID binaries on Linux |
 | [LOLBAS](https://lolbas-project.github.io/) | Living-off-the-land binaries on Windows |
 | [PayloadsAllTheThings](https://github.com/swisskyrepo/PayloadsAllTheThings) | Comprehensive privesc techniques for both OSes |
+
+## 9. Useful Resources
+
+| Resource | Purpose |
+|---|---|
 | [Shodan](https://www.shodan.io/) | Search engine for internet-connected devices, exposed services, and banners |
 | [crt.sh](https://crt.sh/) | Certificate Transparency log search for passive subdomain discovery |
 | [GrayHatWarfare](https://grayhatwarfare.com/) | Search engine for exposed AWS, Azure, and GCP cloud storage buckets; sort/filter by file format |
