@@ -750,6 +750,82 @@ for sub in <SUBDOMAIN_LIST>; do echo "=== $sub.<DOMAIN> ==="; for type in AXFR T
 
 </details>
 
+### 2.6 SMTP Enumeration
+
+#### 2.6.1 smtp-user-enum username enumeration
+
+```bash
+smtp-user-enum -M RCPT -U <WORDLIST> -t <TARGET_IP> -v -w20
+```
+
+<details>
+<summary>Details</summary>
+
+**Description**
+
+- Enumerates valid SMTP usernames by sending a probe for each name in the wordlist and comparing the server's response code.
+- **Prefer `-M RCPT` over `-M VRFY`:** many MTAs return `252` for *every* VRFY query — even for users that don't exist — so VRFY-based enumeration reports false positives (every name looks valid). The `RCPT TO:` check is a more reliable validity oracle (valid → `250`, invalid → `550`).
+- Works over a single session using PIPELINING, so it's fast on large wordlists.
+
+**Parameters**
+
+- `-M RCPT` — Enumeration method: `VRFY`, `EXPN`, or `RCPT`. Use `RCPT` unless VRFY is confirmed reliable.
+- `-U <WORDLIST>` — Path to the username list (one per line).
+- `-t <TARGET_IP>` — Target SMTP server.
+- `-v` — Verbose output.
+- `-w20` — Wait up to 20 seconds for a response; some SMTP servers respond slowly on purpose to foil enumeration.
+
+**Enumeration methods**
+
+| Method | Command | What it tells you |
+|---|---|---|
+| `VRFY` | `VRFY <user>` | Confirms whether a username exists — but often masked with `252` for every name (false positives). |
+| `EXPN` | `EXPN <name>` | Expands aliases / mailing lists to reveal the real recipient addresses behind them (e.g. `EXPN root` → `250 ed.williams@host`). Only works if the server advertises it — otherwise `502 command not recognized`. |
+| `RCPT TO` | `MAIL FROM:<x>` then `RCPT TO:<user>` | Most reliable validity check: `250` = accepted, `550` = user unknown in local recipient table. |
+
+**Recommended wordlists**
+
+- **HTB Academy footprinting wordlist** (`footprinting-wordlist.txt`) — employee-name based; only distributed inside the Academy module (Resources tab), not a public download.
+- **Metasploit default** (`/usr/share/metasploit-framework/data/wordlists/namelist.txt`) — ~88k real first/last names; ships with Kali/Parrot.
+- **SecLists** (`/usr/share/seclists/Usernames/Names/names.txt`) — general name list; install with `apt install seclists`.
+
+**Reference:** https://pentestmonkey.net/tools/user-enumeration/smtp-user-enum
+
+</details>
+
+### 2.7 IMAP / POP3 Enumeration
+
+#### 2.7.1 email-dumper automated IMAP/POP3 dumping
+
+```bash
+git clone https://github.com/Sirbu-Boeti-Eduard/email-dumper
+cd email-dumper
+python3 email_dumper.py --host <TARGET_IP> --username <USER> --password <PASS> --ssl --insecure
+```
+
+<details>
+<summary>Details</summary>
+
+**Description**
+
+- Automated IMAP and POP3 dumping: given valid credentials, pulls every message from all mailboxes to local `.eml` files for offline review.
+- Works for IMAP (143/plaintext/STARTTLS), IMAPS (993), POP3 (110/plaintext/STARTTLS), POP3S (995).
+- `--insecure` skips SSL cert verification — required for lab/CTF servers with self-signed certs.
+
+**Parameters**
+
+- `--host <TARGET_IP>` — Mail server.
+- `--username <USER>` / `--password <PASS>` — Credentials (often the user validated via SMTP user enumeration).
+- `--ssl` — Implicit TLS (993/995).
+- `--starttls` — Upgrade plaintext port with STARTTLS (use if `--ssl` fails with a handshake error).
+- `--pop3` — Use POP3 instead of IMAP.
+- `--insecure` — Skip cert verification for self-signed certs.
+- `--dump-folder <DIR>` — Output directory (default `dumped_mails`).
+
+**Reference:** https://github.com/Sirbu-Boeti-Eduard/email-dumper
+
+</details>
+
 ## 3. Initial Attack Vectors
 
 ### 3.1 LLMNR/NBT-NS Poisoning
