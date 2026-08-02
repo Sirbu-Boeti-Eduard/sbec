@@ -45,6 +45,9 @@
     - `2.7.1` email-dumper automated IMAP/POP3 dumping
   - `2.8` **MySQL Database Enumeration**
     - `2.8.1` mysqldump database dump (self-signed TLS)
+  - `2.9` **MSSQL Database Enumeration**
+    - `2.9.1` impacket-mssqlclient connection & auth modes
+    - `2.9.2` List non-default databases
 - `3` **Initial Attack Vectors**
   - `3.1` **LLMNR/NBT-NS Poisoning**
     - `3.1.1` Responder hash capture
@@ -881,6 +884,45 @@ mysqldump -h <TARGET_IP> -u <USER> -p<PASS> --ssl --ssl-verify-server-cert=0 --a
 - `--ssl` — Enable TLS.
 - `--ssl-verify-server-cert=0` — Skip cert verification (self-signed/lab certs).
 - `--all-databases` — Dump every database.
+
+</details>
+
+### 2.9 MSSQL Database Enumeration
+
+#### 2.9.1 impacket-mssqlclient connection & auth modes
+
+```bash
+impacket-mssqlclient <USER>:<PASS>@<TARGET_IP> -windows-auth
+```
+
+<details>
+<summary>Details</summary>
+
+**Description**
+
+- Interactive MSSQL client. Add `-windows-auth` when the credentials are a Windows domain account — without it the tool tries SQL Server authentication (local SQL logins) and fails.
+- SQL Server supports two auth modes: **SQL logins** (stored in the server, e.g. `sa`) and **Windows logins** (validated by the domain via NTLM). If the user isn't a local SQL login, you must use `-windows-auth`.
+
+**Parameters**
+
+- `<USER>:<PASS>@<TARGET_IP>` — Credentials and target host.
+- `-windows-auth` — Use Windows Integrated Authentication (NTLM) instead of SQL Server authentication.
+
+</details>
+
+#### 2.9.2 List non-default databases
+
+```sql
+SELECT name FROM sys.databases WHERE name NOT IN ('master','tempdb','model','msdb');
+```
+
+<details>
+<summary>Details</summary>
+
+**Description**
+
+- Lists all user-created databases by excluding the four default system databases.
+- Run inside the `impacket-mssqlclient` interactive shell.
 
 </details>
 
