@@ -39,6 +39,12 @@
     - `2.5.1` dig version.bind CHAOS TXT
     - `2.5.3` dnsenum subdomain brute force
     - `2.5.4` dig recursive zone enumeration
+  - `2.6` **SMTP Enumeration**
+    - `2.6.1` smtp-user-enum username enumeration
+  - `2.7` **IMAP / POP3 Enumeration**
+    - `2.7.1` email-dumper automated IMAP/POP3 dumping
+  - `2.8` **MySQL Database Enumeration**
+    - `2.8.1` mysqldump database dump (self-signed TLS)
 - `3` **Initial Attack Vectors**
   - `3.1` **LLMNR/NBT-NS Poisoning**
     - `3.1.1` Responder hash capture
@@ -849,6 +855,32 @@ python3 email_dumper.py --host <TARGET_IP> --username <USER> --password <PASS> -
 - `--dump-folder <DIR>` — Output directory (default `dumped_mails`).
 
 **Reference:** https://github.com/Sirbu-Boeti-Eduard/email-dumper
+
+</details>
+
+### 2.8 MySQL Database Enumeration
+
+#### 2.8.1 mysqldump database dump (self-signed TLS)
+
+```bash
+mysqldump -h <TARGET_IP> -u <USER> -p<PASS> --ssl --ssl-verify-server-cert=0 --all-databases > dump.sql
+```
+
+<details>
+<summary>Details</summary>
+
+**Description**
+
+- Dumps every database to a `.sql` file for offline review.
+- `--ssl` forces a TLS connection; `--ssl-verify-server-cert=0` skips certificate verification so self-signed/lab certs are accepted.
+
+**Parameters**
+
+- `-h <TARGET_IP>` — Database host.
+- `-u <USER>` / `-p<PASS>` — Credentials (no space after `-p`).
+- `--ssl` — Enable TLS.
+- `--ssl-verify-server-cert=0` — Skip cert verification (self-signed/lab certs).
+- `--all-databases` — Dump every database.
 
 </details>
 
