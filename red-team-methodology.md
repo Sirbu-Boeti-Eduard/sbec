@@ -702,6 +702,55 @@ sudo nmap <TARGET_IP> -p <PORT> -sV --script vuln
 
 </details>
 
+#### 2.4.2 SSH-Audit
+
+```bash
+git clone https://github.com/jtesta/ssh-audit.git && cd ssh-audit
+./ssh-audit.py <TARGET_IP>
+```
+
+<details>
+<summary>Details</summary>
+
+**Description**
+
+- Audits the SSH server configuration of the target, inspecting supported algorithms, key exchange methods, ciphers, MACs, and host keys.
+- Flags weak or deprecated cryptographic primitives, identifies CVEs tied to the SSH server version, and surfaces misconfigurations (e.g., root login permitted, short keys, compression issues).
+- Generates a detailed report with security recommendations for hardening the SSH service.
+
+**Parameters**
+
+- `<TARGET_IP>` — IP address or hostname of the SSH server to audit.
+
+**Reference:** https://github.com/jtesta/ssh-audit
+
+</details>
+
+#### 2.4.3 rdp-sec-check.pl
+
+```bash
+sudo cpan -i Encoding::BER
+git clone https://github.com/CiscoCXSecurity/rdp-sec-check.git && cd rdp-sec-check
+./rdp-sec-check.pl <TARGET_IP>
+```
+
+<details>
+<summary>Details</summary>
+
+**Description**
+
+- Unauthenticated Perl script that inspects RDP server security settings via handshake analysis — no noisy scan, no login attempts.
+- Reports supported protocols (RDP Security, TLS, CredSSP/NLA) and encryption levels (none, 40-bit, 56-bit, 128-bit, FIPS).
+- Flags servers missing NLA or supporting weak/zero encryption.
+
+**Parameters**
+
+- `<TARGET_IP>` — IP of the RDP host (defaults to port 3389).
+
+**Reference:** https://github.com/CiscoCXSecurity/rdp-sec-check
+
+</details>
+
 ### 2.5 DNS Enumeration
 
 #### 2.5.1 dig version.bind CHAOS TXT
@@ -1114,6 +1163,22 @@ john --format=rakp --wordlist=/usr/share/wordlists/rockyou.txt /tmp/ipmi_john.ha
 - `--mask=<MASK>` — Mask attack for brute-force patterns.
 
 </details>
+
+### 2.12 Rsync Enumeration
+
+Rsync on TCP/873 may expose shares without authentication.
+
+```bash
+nc -nv <TARGET_IP> 873
+```
+Once connected, type `#list` to see available shares.
+
+If a share is accessible:
+```bash
+rsync -av rsync://<TARGET_IP>/<SHARE> ./<LOCAL_DIR>/
+```
+
+Probe for SSH keys (e.g. `.ssh`), config files, or credentials in the synced share.
 
 ## 3. Initial Attack Vectors
 
