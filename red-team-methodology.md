@@ -25,6 +25,7 @@
   - `2.2` **SNMP Enumeration**
     - `2.2.1` snmpwalk community string query
     - `2.2.2` onesixtyone community string brute force
+    - `2.2.3` braa bulk MIB walk / community string brute force
   - `2.3` **Web Content Discovery**
     - `2.3.1` gobuster directory enumeration
     - `2.3.2` gobuster DNS subdomain enumeration
@@ -456,14 +457,39 @@ onesixtyone -c <DICT_FILE> <TARGET_IP>
 
 - Brute-forces SNMP community string names using a dictionary of common strings.
 - The tool's GitHub repository includes a `dict.txt` file with commonly used community strings.
-- Once a valid community string is found, use `snmpwalk` to enumerate the device.
+- Prefer SecLists' more comprehensive list at `/usr/share/seclists/Discovery/SNMP/snmp.txt` (or `/opt/useful/seclists/...`).
+- Once a valid community string is found, use `snmpwalk` or `braa` to enumerate the device.
 
 **Parameters**
 
-- `-c <DICT_FILE>` — Dictionary file containing community strings, one per line.
+- `-c <DICT_FILE>` — Dictionary file containing community strings, one per line (e.g. `snmp.txt` from SecLists).
 - `<TARGET_IP>` — Target device IP.
 
 **Reference:** [onesixtyone GitHub](https://github.com/trailofbits/onesixtyone)
+
+</details>
+
+#### 2.2.3 braa bulk MIB walk / community string brute force
+
+```bash
+braa <COMMUNITY_STRING>@<TARGET_IP>:.1.3.6.*
+```
+
+<details>
+<summary>Details</summary>
+
+**Description**
+
+- Bulk-walks a full OID tree in a single fast pass, querying the specified subtree (e.g. `1.3.6.1.2.1` or `1.3.6.*`) without needing individual OID lookups.
+- Faster than `snmpwalk` for large enumerations because it parallelizes requests and walks the MIB tree sequentially with minimal overhead.
+- Can also brute-force the OID subtree when the target MIB is unknown.
+- Like other SNMPv1/v2c tools, requires the community string; pair it with `onesixtyone` to discover the string first.
+
+**Parameters**
+
+- `<COMMUNITY_STRING>` — Community string (e.g. `public`, `private`).
+- `<TARGET_IP>` — Target device IP.
+- `.1.3.6.*` — Root OID to walk; any subtree under `1.3.6` can be targeted.
 
 </details>
 
