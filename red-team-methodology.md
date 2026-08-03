@@ -481,6 +481,18 @@ onesixtyone -c <DICT_FILE> <TARGET_IP>
 - `-c <DICT_FILE>` — Dictionary file containing community strings, one per line (e.g. `snmp.txt` from SecLists).
 - `<TARGET_IP>` — Target device IP.
 
+**Expected output**
+
+```
+Scanning 1 hosts, 151 communities
+10.129.202.20 [backup] Linux NIXHARD 5.4.0-90-generic #101-Ubuntu SMP Fri Oct 15 20:00:55 UTC 2021 x86_64
+```
+
+Reading the output:
+
+- Anything in `[ ]` is the **community string** — here `[backup]`. The rest of the line is the target's `sysDescr` (OS/hostname/kernel) confirming the hit.
+- Community strings often mirror the host's purpose (e.g. `backup` on a backup server) — if the target's role is known, add those strings to your dictionary.
+
 **Reference:** [onesixtyone GitHub](https://github.com/trailofbits/onesixtyone)
 
 </details>
