@@ -795,10 +795,18 @@ sudo nmap <TARGET_IP> -p 53 -sU -sV -Pn -n
 
 </details>
 
-#### 2.5.3 dnsenum subdomain brute force
+#### 2.5.3 dnsenum subdomain enumeration & brute force
+
+**Against an internal DNS server (internal pentest)** — query a specific DNS server you found on the internal network:
 
 ```bash
 dnsenum --dnsserver <TARGET_IP> --enum -p 0 -s 0 -o subdomains.txt -f /opt/useful/seclists/Discovery/DNS/subdomains-top1million-110000.txt <DOMAIN>
+```
+
+**Alternative — external/generic (external pentest)** — uses the default resolver and is more extensive: recurses into discovered subdomains that have an NS record, so it catches multi-level names:
+
+```bash
+dnsenum --enum <DOMAIN> -f /usr/share/seclists/Discovery/DNS/subdomains-top1million-20000.txt -r
 ```
 
 <details>
@@ -808,15 +816,16 @@ dnsenum --dnsserver <TARGET_IP> --enum -p 0 -s 0 -o subdomains.txt -f /opt/usefu
 
 - Automated DNS enumeration: resolves host addresses, name servers, MX records, attempts zone transfers (AXFR), and brute-forces subdomains.
 - Performs the same class of brute-force queries as a manual `dig` loop, in one command.
+- Use the internal variant when you know the target's own DNS server; use the external variant for internet-facing recon where you want recursion and rely on your default resolver.
 
 **Parameters**
 
-- `--dnsserver <TARGET_IP>` — DNS server to query.
-- `--enum` — Run all enumeration functions.
-- `-p 0` — Skip TCP port scanning (scans 0 ports).
-- `-s 0` — Skip reverse DNS lookups for subdomains.
-- `-o subdomains.txt` — Write results to a file.
+- `--dnsserver <TARGET_IP>` — DNS server to query for A, NS and MX (use when you want to interrogate a specific/authoritative server instead of the default resolver).
+- `--enum` — Shortcut option equivalent to `--threads 5 -s 15 -w`: enables threaded queries, Google scraping (15 results) and whois netrange lookups.
+- `-r` — Recursion: brute-forces all discovered subdomains that have an NS record, catching multi-level (recursive) names like `dev.remote.corp`.
 - `-f <WORDLIST>` — Subdomain wordlist to brute-force with.
+- `-p 0` / `-s 0` — On older dnsenum builds these skip TCP port scanning (`-p`) and reverse DNS lookups (`-s`). **Note:** on dnsenum v1.3.1 these switches are Google-scraping controls (`-p` = `--pages`, `-s` = `--scrap`), so verify against your version's `dnsenum --help`.
+- `-o subdomains.txt` — Write results in XML format (importable into MagicTree).
 - `<DOMAIN>` — Base domain.
 
 **Recommended wordlists**
@@ -824,6 +833,7 @@ dnsenum --dnsserver <TARGET_IP> --enum -p 0 -s 0 -o subdomains.txt -f /opt/usefu
 | Wordlist | Characteristics |
 |---|---|
 | `subdomains-top1million-110000.txt` | Real-world subdomains ranked by popularity (www, api, blog, dev, mail). Good general coverage. |
+| `subdomains-top1million-20000.txt` | Top 20k real-world subdomains by popularity (www, mail, ns1, ftp). Leaner and faster than the 110k list — fine for external recon. |
 | `fierce-hostlist.txt` | Curated list heavy on internal/AD-style hostnames (win2k, dc1, wsus, exchange) often absent from popularity lists. Run as a second pass — different lists hit different names. |
 
 </details>

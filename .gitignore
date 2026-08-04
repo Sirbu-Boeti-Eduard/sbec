@@ -1,1 +1,44 @@
-prompt.md
+# Best practices — commonly gitignored files
+
+# Environment variables and secrets
+.env
+.env.*
+!.env.example
+
+# SSH keys and private credentials
+.ssh/
+ssh/
+*.pem
+*.key
+*.p12
+*.pfx
+*.pub
+
+# Logs
+*.log
+logs/
+
+# Operating system files
+.DS_Store
+Thumbs.db
+
+# Editors and IDEs
+.idea/
+.vscode/
+*.swp
+*.swo
+
+# Build and dependency artifacts
+node_modules/
+dist/
+build/
+coverage/
+__pycache__/
+*.py[cod]
+.venv/
+venv/
+
+# Local configuration / personal tooling
+AGENTS.md
+config.local.*
+*.local
