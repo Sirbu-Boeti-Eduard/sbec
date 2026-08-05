@@ -33,6 +33,13 @@
     - `2.3.4` whatweb technology fingerprinting
     - `2.3.5` ncat banner grabbing
     - `2.3.6` crt.sh certificate transparency log query
+    - `2.3.7` gobuster vhost enumeration
+    - `2.3.8` wafw00f WAF detection
+    - `2.3.9` nikto web server scanner
+    - `2.3.10` ReconSpider web scraping (Scrapy spider)
+    - `2.3.11` Google Dorking (Google Hacking)
+    - `2.3.12` FinalRecon all-in-one web recon
+    - `2.3.13` ffuf web fuzzer (vhost / subdomain / directory)
   - `2.4` **Vulnerability Assessment**
     - `2.4.1` Nmap NSE --script vuln
   - `2.5` **DNS Enumeration**
@@ -584,6 +591,12 @@ gobuster dns -d <DOMAIN> -w /usr/share/seclists/Discovery/DNS/namelist.txt
 curl -IL <TARGET_URL>
 ```
 
+**Reaching a vhost that doesn't resolve in DNS (no `/etc/hosts` edit needed):**
+
+```bash
+curl -s http://<VHOST>:<PORT>/ --resolve <VHOST>:<PORT>:<TARGET_IP>
+```
+
 <details>
 <summary>Details</summary>
 
@@ -592,6 +605,7 @@ curl -IL <TARGET_URL>
 - Retrieves HTTP response headers from a web server, revealing the server software, framework, and security headers.
 - `-I` — Fetch only the HTTP response headers (HEAD request).
 - `-L` — Follow redirects, showing headers for the final destination.
+- `--resolve <HOST>:<PORT>:<IP>` — Forces the given hostname:port to resolve to the target IP for this request only, without touching `/etc/hosts`. Essential for reaching vhosts found via fuzzing that have no public DNS record (e.g. `web1337.inlanefreight.htb`).
 - Common findings: `Server` header (Apache/nginx version), `X-Powered-By` (PHP/ASP.NET), `Set-Cookie` (session handling), missing security headers (e.g. `Content-Security-Policy`).
 
 </details>
@@ -684,6 +698,272 @@ curl -s "https://crt.sh/?q=<DOMAIN>&output=json" | jq -r '.[].name_value' | sort
 - `sort -u` — Deduplicates and sorts the resulting subdomain list.
 
 **Reference:** https://crt.sh
+
+</details>
+
+#### 2.3.7 gobuster vhost enumeration
+
+```bash
+gobuster vhost -u <TARGET_URL> -w /usr/share/seclists/Discovery/DNS/subdomains-top1million-110000.txt --append-domain
+```
+
+<details>
+<summary>Details</summary>
+
+**Description**
+
+- Brute-forces virtual hosts (vhosts) on a web server by sending each wordlist entry as the HTTP `Host:` header.
+- Vhosts are sites hosted on the same IP/port that often have no public DNS record — DNS subdomain brute-force won't find them, but the server answers different content depending on the `Host:` header it receives.
+- Run after DNS subdomain enumeration (`2.3.2`): the two are complementary — DNS finds resolvable names, vhost fuzzing finds hidden sites behind the same IP.
+- Map the target domain to the server IP first in `/etc/hosts` so the `-u` URL resolves:
+  ```bash
+  sudo sh -c 'echo "<IP> <DOMAIN>" >> /etc/hosts'
+  ```
+- Use the port where the web service actually listens — it may differ from 80 (e.g. `http://<DOMAIN>:30235`).
+
+**Parameters**
+
+- `vhost` — Vhost brute-forcing mode.
+- `-u <TARGET_URL>` — Base URL (e.g. `http://inlanefreight.htb:30235`).
+- `-w <WORDLIST>` — Path to the wordlist; subdomain lists work well (e.g. `/usr/share/seclists/Discovery/DNS/subdomains-top1million-110000.txt`).
+- `--append-domain` — Appends the base domain to each word (`admin` → `admin.inlanefreight.htb`), so the `Host:` header becomes `<word>.<DOMAIN>:<PORT>`.
+- `-t <THREADS>` — Optional thread count for speed (e.g. `-t 50`).
+
+**Interpreting results**
+
+- A non-404 status code (200, 301, 302, 403) indicates a real vhost; `404` means no matching site on the server.
+- Establish a baseline first by hitting `Host: <IP>` or a random name and noting the status/size — hidden vhosts usually return a different size than the default site.
+- Ffuf alternative (see `2.3.13` for the full ffuf section):
+  ```bash
+  ffuf -w <WORDLIST>:FUZZ -u http://<DOMAIN>:<PORT> -H "Host: FUZZ.<DOMAIN>" -fs <DEFAULT_SIZE>
+  ```
+
+</details>
+
+#### 2.3.8 wafw00f WAF detection
+
+```bash
+pip3 install git+https://github.com/EnableSecurity/wafw00f
+wafw00f inlanefreight.com
+```
+
+<details>
+<summary>Details</summary>
+
+**Description**
+
+- Detects whether a target is behind a Web Application Firewall and fingerprints the specific product (e.g. `Wordfence (Defiant)`, Cloudflare, ModSecurity).
+- A WAF adds a security layer that may block/filter recon — factor it in and plan evasion if needed.
+
+**Parameters**
+
+- `<DOMAIN>` — Target domain or URL (e.g. `inlanefreight.com`).
+
+**Expected output**
+
+```
+[+] The site https://inlanefreight.com is behind Wordfence (Defiant) WAF.
+[~] Number of requests: 2
+```
+
+**Reference:** https://github.com/EnableSecurity/wafw00f
+
+</details>
+
+#### 2.3.9 nikto web server scanner
+
+```bash
+sudo apt update && sudo apt install -y perl
+git clone https://github.com/sullo/nikto
+cd nikto/program
+chmod +x ./nikto.pl
+nikto -h inlanefreight.com -Tuning b
+```
+
+<details>
+<summary>Details</summary>
+
+**Description**
+
+- Open-source web server scanner; fingerprints the technology stack and surfaces outdated software, insecure files/configurations, and other risks (e.g. WordPress install, `/wp-login.php`, `license.txt`, missing security headers, server version).
+- Pre-installed on pwnbox.
+
+**Parameters**
+
+- `-h <HOST>` — Target host or URL (e.g. `inlanefreight.com`).
+- `-Tuning <b>` — Restrict scan to specific tuning modules; `b` = Software Identification (fingerprinting) only.
+
+**Reference:** https://github.com/sullo/nikto
+
+</details>
+
+#### 2.3.10 ReconSpider web scraping (Scrapy spider)
+
+```bash
+pip3 install scrapy
+wget -O ReconSpider.zip https://academy.hackthebox.com/storage/modules/144/ReconSpider.v1.2.zip
+unzip ReconSpider.zip
+python3 ReconSpider.py http://inlanefreight.com
+```
+
+<details>
+<summary>Details</summary>
+
+**Description**
+
+- Custom Scrapy-based spider that crawls the target and collects recon data into `results.json`: emails, links, external files, JS files, form fields, images, videos, audio, and HTML comments.
+- Useful for mapping the site's architecture and surfacing points of interest (report portals, office pages, uploads) without manual browsing.
+
+**Parameters**
+
+- `<URL>` — Target URL to spider (e.g. `http://inlanefreight.com`).
+
+**Output — `results.json` structure**
+
+| Key | Description |
+|---|---|
+| `emails` | Email addresses found on the domain |
+| `links` | URLs of links found within the domain |
+| `external_files` | URLs of external files (PDFs, etc.) |
+| `js_files` | URLs of JavaScript files used by the site |
+| `form_fields` | Form fields found on the domain |
+| `images` | URLs of images found on the domain |
+| `videos` | URLs of videos found on the domain |
+| `audio` | URLs of audio files found on the domain |
+| `comments` | HTML comments found in the source code |
+
+**Tips**
+
+- Grep the JSON for interesting keywords to find hidden endpoints: `grep -i report results.json`.
+- The `links` array often exposes subdomains/portals not listed elsewhere (e.g. a reports file-storage domain).
+
+</details>
+
+#### 2.3.11 Google Dorking (Google Hacking)
+
+```text
+site:example.com inurl:login
+site:example.com (inurl:login OR inurl:admin)
+site:example.com filetype:pdf
+site:example.com (filetype:xls OR filetype:docx)
+site:example.com inurl:config.php
+site:example.com (ext:conf OR ext:cnf)
+site:example.com inurl:backup
+site:example.com filetype:sql
+```
+
+<details>
+<summary>Details</summary>
+
+**Description**
+
+- Google Dorking (Google Hacking) leverages Google's search operators to uncover sensitive information, security vulnerabilities, or hidden content on websites.
+- Passive technique — no traffic touches the target, so it's safe for initial recon.
+
+**Common operators**
+
+- `site:<domain>` — Restrict results to the target domain.
+- `inurl:<string>` — Pages with the term in the URL.
+- `filetype:<ext>` / `ext:<ext>` — Files of a specific type (pdf, xls, docx, sql, conf, cnf...).
+- `intext:` / `intitle:` — Search page body/title content.
+- `OR` — Combine alternatives inside parentheses.
+
+**Example use cases**
+
+| Goal | Dork |
+|---|---|
+| Login pages | `site:example.com inurl:login` / `site:example.com (inurl:login OR inurl:admin)` |
+| Exposed files | `site:example.com filetype:pdf` / `site:example.com (filetype:xls OR filetype:docx)` |
+| Config files | `site:example.com inurl:config.php` / `site:example.com (ext:conf OR ext:cnf)` |
+| Database backups | `site:example.com inurl:backup` / `site:example.com filetype:sql` |
+
+**Reference:** Google Hacking Database (https://www.exploit-db.com/google-hacking-database)
+
+</details>
+
+#### 2.3.12 FinalRecon all-in-one web recon
+
+```bash
+git clone https://github.com/thewhiteh4t/FinalRecon.git
+cd FinalRecon
+pip3 install -r requirements.txt
+chmod +x ./finalrecon.py
+./finalrecon.py --headers --whois --url http://inlanefreight.com
+```
+
+<details>
+<summary>Details</summary>
+
+**Description**
+
+- All-in-one web reconnaissance tool combining header inspection, whois, SSL info, crawling, DNS/subdomain enumeration, directory brute-force, Wayback queries, and fast port scanning in one tool.
+- Modular: invoke only the modules you need per target.
+
+**Modules**
+
+- `--headers` — Header information: server details, technologies, security misconfigurations.
+- `--whois` — Domain registration details (registrant, contacts).
+- `--sslinfo` — SSL/TLS certificate validity, issuer, and details.
+- `--crawl` — Crawl the site: extract HTML/CSS/JS links, internal/external links, images, `robots.txt`, `sitemap.xml`, links inside JavaScript, and Wayback URLs to map structure and find hidden paths.
+- `--dns` — DNS enumeration across 40+ record types (incl. DMARC for email security assessment).
+- `--sub` — Subdomain enumeration from multiple sources (crt.sh, AnubisDB, ThreatMiner, CertSpotter, Facebook/VirusTotal/Shodan/BeVigil APIs).
+- `--dir` — Directory/file brute-force with custom wordlists and file extensions.
+- `--wayback` — Retrieve URLs from the Wayback Machine (last five years) to analyse site changes.
+- `--ps` — Fast port scan.
+- `--full` — Run full recon (all modules).
+
+**Options**
+
+- `--url <URL>` — Target URL; required for every run. Combine it with one or more modules above (e.g. `--headers --whois`).
+
+**Reference:** https://github.com/thewhiteh4t/FinalRecon
+
+</details>
+
+#### 2.3.13 ffuf web fuzzer (vhost / subdomain / directory)
+
+```bash
+# Vhost fuzzing (Host header)
+ffuf -w /usr/share/seclists/Discovery/DNS/subdomains-top1million-110000.txt:FUZZ -u http://<TARGET_IP>:<PORT>/ -H "Host: FUZZ.<DOMAIN>" -fs <DEFAULT_SIZE>
+
+# Subdomain fuzzing (Host header, nested depth: FUZZ.<known_vhost>.<DOMAIN>)
+ffuf -w /usr/share/seclists/Discovery/DNS/subdomains-top1million-110000.txt:FUZZ -u http://<TARGET_IP>:<PORT>/ -H "Host: FUZZ.<KNOWN_VHOST>.<DOMAIN>" -fs <DEFAULT_SIZE>
+
+# Directory fuzzing
+ffuf -w /usr/share/seclists/Discovery/Web-Content/raft-large-directories.txt:FUZZ -u http://<TARGET_URL>/FUZZ -fc 404
+
+# Directory + file extensions
+ffuf -w /usr/share/seclists/Discovery/Web-Content/raft-large-files.txt:FUZZ -u http://<TARGET_URL>/FUZZ -x php,txt,html,bak,js,json -fc 404
+```
+
+<details>
+<summary>Details</summary>
+
+**Description**
+
+- General-purpose web fuzzer; fastest tool for vhost, subdomain, directory, and file discovery.
+- When fuzzing vhosts it hits the **bare IP** directly and injects each wordlist entry into the `Host:` header — no DNS resolution needed, so it also finds hidden sites that have no public DNS record.
+- Fuzzing a nested vhost (`FUZZ.<KNOWN_VHOST>.<DOMAIN>`) reveals deeper levels, e.g. `dev.web1337.inlanefreight.htb` after `web1337.inlanefreight.htb` was already found.
+- Use the port where the web service actually listens — it may differ from 80 (e.g. `:32016`).
+
+**Parameters**
+
+- `-w <WORDLIST>:FUZZ` — Wordlist with the `FUZZ` placeholder marking where each word is injected.
+- `-u <URL>` — Target URL (vhost fuzzing: the bare IP; directory fuzzing: the base URL).
+- `-H "Host: FUZZ.<DOMAIN>"` — Builds the `Host:` header from the fuzz word. For nested vhosts: `FUZZ.<KNOWN_VHOST>.<DOMAIN>`.
+- `-fs <SIZE>` — Filter out responses matching a size (e.g. the default/welcome page size). Critical for vhost fuzzing to cut noise.
+- `-fc <CODE>` — Filter out responses matching a status code (e.g. `-fc 404` for directory fuzzing).
+- `-x <EXT[,EXT...]>` — Append extensions to each word (`php,txt,html,bak,js,json`).
+- `-mc <CODES>` — Match specific status codes (default: `200-299,301,302,307,401,403,405,500`).
+- `-t <THREADS>` — Thread count (e.g. `-t 50`).
+
+**Interpreting results**
+
+- A non-default status/size hit that isn't filtered out is a real vhost or path.
+- Establish a baseline first: hit `Host: <IP>` or a random name and note the status/size, then filter it with `-fs`.
+- The bare-IP target means a vhost that doesn't resolve in DNS is still discoverable — access it later with `curl --resolve` (see `2.3.3`) or an `/etc/hosts` entry.
+
+**Reference:** https://github.com/ffuf/ffuf
 
 </details>
 
