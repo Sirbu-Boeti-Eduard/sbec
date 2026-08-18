@@ -65,6 +65,9 @@
   - `2.11` **IPMI Enumeration**
     - `2.11.1` Metasploit IPMI hash dump
     - `2.11.2` John the Ripper RAKP hash cracking
+  - `2.12` **Rsync Enumeration**
+  - `2.13` **PJL (Printer Job Language) — File Primitives**
+    - `2.13.1` PJL framing & filesystem commands (FSUPLOAD / FSDOWNLOAD / FSQUERY)
 - `3` **Initial Attack Vectors**
   - `3.1` **LLMNR/NBT-NS Poisoning**
     - `3.1.1` Responder hash capture
@@ -1543,6 +1546,45 @@ rsync -av rsync://<TARGET_IP>/<SHARE> ./<LOCAL_DIR>/
 ```
 
 Probe for SSH keys (e.g. `.ssh`), config files, or credentials in the synced share.
+
+### 2.13 PJL (Printer Job Language) — File Primitives
+
+Network printers and "jetdirect"-style print services (often TCP/9100) may implement **PJL filesystem commands** that read/write/list files on the host. The service runs as whatever user owns it, so these commands become a **file read/write primitive** for that account — useful for grabbing flags, dropping SSH keys, or planting web shells.
+
+**Discovery**
+
+- A listening port in the 9000-9100 range (JetDirect raw is 9100), or a print/`jetdirect`/`PJL` process in `ps aux`.
+- Send a PJL query to fingerprint the device:
+  ```bash
+  printf '\x1b%%-12345X@PJL INFO ID\r\n\x1b%%-12345X' | nc -nv <TARGET> 9100
+  ```
+
+**PJL framing**
+
+PJL commands are wrapped in escape framing:
+
+```text
+\x1b%-12345X@PJL <COMMAND>\r\n\x1b%-12345X
+```
+
+- `\x1b%-12345X` — Universal Exit Language (UEL) start/end marker.
+- Commands are `@PJL` + name + space-separated args.
+
+**Common filesystem commands**
+
+| Command | Meaning |
+|---|---|
+| `FSUPLOAD NAME="<path>"` | Read a file's contents (server → client) |
+| `FSDOWNLOAD NAME="<path>" SIZE=<N>` | Write a file (`<N>` bytes follow) |
+| `FSQUERY NAME="<path>"` / `FSDIRLIST NAME="<path>"` | Stat / list a directory |
+
+**Notes**
+
+- The filesystem root is often a specific directory; paths may be sanitized by stripping leading `/` and normalizing — check whether `../` traversal survives the normalization (leading-`/` strip + `normpath(join(root, path))` with no `..` filter = traversal).
+- Try `NAME="<file>"` relative to the root first — a service rooted in its own directory can often read its own source, revealing further behavior.
+- Every command may be logged by the service — useful if a monitoring daemon watches that log.
+
+**Reference:** [HackTricks — 9100 / PJL](https://hacktricks.wiki/en/network-services-pentesting/9100-pjl.html) / [Hacking Printers Wiki — Port 9100](http://hacking-printers.net/wiki/index.php/Port_9100_printing)
 
 ## 3. Initial Attack Vectors
 
