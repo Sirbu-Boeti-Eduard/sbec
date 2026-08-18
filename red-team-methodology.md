@@ -33,15 +33,16 @@
     - `2.3.2` gobuster DNS subdomain enumeration
     - `2.3.3` curl banner grabbing
     - `2.3.4` whatweb technology fingerprinting
-    - `2.3.5` ncat banner grabbing
-    - `2.3.6` crt.sh certificate transparency log query
-    - `2.3.7` gobuster vhost enumeration
-    - `2.3.8` wafw00f WAF detection
-    - `2.3.9` nikto web server scanner
-    - `2.3.10` ReconSpider web scraping (Scrapy spider)
-    - `2.3.11` Google Dorking (Google Hacking)
-    - `2.3.12` FinalRecon all-in-one web recon
-    - `2.3.13` ffuf web fuzzer (vhost / subdomain / directory)
+    - `2.3.5` Next.js / React version fingerprinting
+    - `2.3.6` ncat banner grabbing
+    - `2.3.7` crt.sh certificate transparency log query
+    - `2.3.8` gobuster vhost enumeration
+    - `2.3.9` wafw00f WAF detection
+    - `2.3.10` nikto web server scanner
+    - `2.3.11` ReconSpider web scraping (Scrapy spider)
+    - `2.3.12` Google Dorking (Google Hacking)
+    - `2.3.13` FinalRecon all-in-one web recon
+    - `2.3.14` ffuf web fuzzer (vhost / subdomain / directory)
   - `2.4` **Vulnerability Assessment**
     - `2.4.1` Nmap NSE --script vuln
   - `2.5` **DNS Enumeration**
@@ -642,7 +643,35 @@ whatweb --no-errors <IP/MASK>
 
 </details>
 
-#### 2.3.5 ncat banner grabbing
+#### 2.3.5 Next.js / React version fingerprinting
+
+```bash
+# 1. Pull the homepage and download the JS chunks it references
+curl -s http://<TARGET_IP>:<PORT>/ -o index.html
+grep -oE 'src="[^"]+\.js"' index.html | cut -d'"' -f2 | sort -u > chunks.txt
+mkdir -p js && while read c; do curl -s "http://<TARGET_IP>:<PORT>$c" -o "js/$(basename $c)"; done < chunks.txt
+
+# 2. Grep the chunks for EVERY framework version, not just the web framework
+grep -oE 'version:"[0-9]+\.[0-9]+\.[0-9]+[^"]*"|version="[0-9]+\.[0-9]+\.[0-9]+[^"]*"' js/*.js | sort -u
+```
+
+<details>
+<summary>Details</summary>
+
+**Description**
+
+- Next.js (and React) embed `version:"x.y.z"` / `version="x.y.z"` strings in the compiled bundle for runtime feature detection — a reliable version fingerprint source without a banner.
+- **Fingerprint EVERY component in the bundle** (framework AND runtime libraries). A common miss is pinning only the web framework's version while ignoring its bundled runtime — e.g. Next.js 15.0.3 also shipping React 19.0.0-rc, where the exploitable CVE (CVE-2025-55182 "React2Shell", pre-auth RCE via `Next-Action` POST + crafted React Flight payload) was in the *React* version, not Next.
+- Check framework version first, then check the React/React-DOM pair, then cross-reference both against CVE databases / exploit-db before heavy fuzzing.
+
+**Parameters**
+
+- `<TARGET_IP>`, `<PORT>` — target web app.
+- `chunks.txt` — list of `/path/to/xxx.js` URLs extracted from the homepage.
+
+</details>
+
+#### 2.3.6 ncat banner grabbing
 
 ```bash
 ncat -nv <TARGET_IP> <PORT>
@@ -674,7 +703,7 @@ sudo ncat -nv --source-port 53 <TARGET_IP> <PORT>
 
 </details>
 
-#### 2.3.6 crt.sh certificate transparency log query
+#### 2.3.7 crt.sh certificate transparency log query
 
 ```bash
 curl -s "https://crt.sh/?q=<DOMAIN>&output=json" | jq -r '.[].name_value' | sort -u
@@ -703,7 +732,7 @@ curl -s "https://crt.sh/?q=<DOMAIN>&output=json" | jq -r '.[].name_value' | sort
 
 </details>
 
-#### 2.3.7 gobuster vhost enumeration
+#### 2.3.8 gobuster vhost enumeration
 
 ```bash
 gobuster vhost -u <TARGET_URL> -w /usr/share/seclists/Discovery/DNS/subdomains-top1million-110000.txt --append-domain
@@ -742,7 +771,7 @@ gobuster vhost -u <TARGET_URL> -w /usr/share/seclists/Discovery/DNS/subdomains-t
 
 </details>
 
-#### 2.3.8 wafw00f WAF detection
+#### 2.3.9 wafw00f WAF detection
 
 ```bash
 pip3 install git+https://github.com/EnableSecurity/wafw00f
@@ -772,7 +801,7 @@ wafw00f inlanefreight.com
 
 </details>
 
-#### 2.3.9 nikto web server scanner
+#### 2.3.10 nikto web server scanner
 
 ```bash
 sudo apt update && sudo apt install -y perl
@@ -799,7 +828,7 @@ nikto -h inlanefreight.com -Tuning b
 
 </details>
 
-#### 2.3.10 ReconSpider web scraping (Scrapy spider)
+#### 2.3.11 ReconSpider web scraping (Scrapy spider)
 
 ```bash
 pip3 install scrapy
@@ -841,7 +870,7 @@ python3 ReconSpider.py http://inlanefreight.com
 
 </details>
 
-#### 2.3.11 Google Dorking (Google Hacking)
+#### 2.3.12 Google Dorking (Google Hacking)
 
 ```text
 site:example.com inurl:login
@@ -883,7 +912,7 @@ site:example.com filetype:sql
 
 </details>
 
-#### 2.3.12 FinalRecon all-in-one web recon
+#### 2.3.13 FinalRecon all-in-one web recon
 
 ```bash
 git clone https://github.com/thewhiteh4t/FinalRecon.git
@@ -922,7 +951,7 @@ chmod +x ./finalrecon.py
 
 </details>
 
-#### 2.3.13 ffuf web fuzzer (vhost / subdomain / directory)
+#### 2.3.14 ffuf web fuzzer (vhost / subdomain / directory)
 
 ```bash
 # Vhost fuzzing (Host header)
