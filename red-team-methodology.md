@@ -1074,6 +1074,37 @@ git clone https://github.com/CiscoCXSecurity/rdp-sec-check.git && cd rdp-sec-che
 
 </details>
 
+#### 2.4.4 SSRF (Server-Side Request Forgery)
+
+Any feature that fetches a URL server-side (source validators, importers, webhook previews) is an SSRF primitive — internal hosts become reachable from the app's network position.
+
+- **Read vs blind:** if the response echoes the fetched content (status, content-type, body preview), it's a **read primitive** — use it to map internal services.
+- **Blocklist vs allowlist:** a filter rejecting `localhost`/`127.0.0.1` by string match is trivial to bypass; an allowlist (scheme + resolved-IP validation) is the real defense.
+
+**Loopback / filter bypass:**
+
+```bash
+http://127.1/               # 127.0.0.1 shorthand
+http://0.0.0.0/             # often reaches loopback listeners
+http://127.0.0.2/           # 127/8 is loopback; only .1 usually blocked
+http://2130706433/          # decimal IP
+http://0x7f000001/          # hex IP
+http://0177.0.0.1/          # octal IP
+http://[::ffff:127.0.0.1]/  # IPv4-mapped IPv6
+http://localhost/           # hostname alias
+# DNS-rebind; 302 redirect to loopback (bypasses validate-initial-URL-only filters)
+```
+
+**After gaining a read primitive:**
+
+- Port-scan internal hosts (status/content-type differences = open/closed).
+- Hit loopback-ACL'd endpoints (e.g. nginx `/status` with an IP allowlist) to leak vhost/upstream configs.
+- Probe leaked vhost names over the *public* interface — "internal only" vhosts are often just unreferenced, not unreachable.
+
+**Reference:** [HackTricks — SSRF](https://book.hacktricks.wiki/en/pentesting-web/ssrf-server-side-request-forgery.html)
+
+</details>
+
 ### 2.5 DNS Enumeration
 
 #### 2.5.1 dig version.bind CHAOS TXT
