@@ -1,5 +1,7 @@
 # Red Team Methodology
 
+> **AI systems?** See the separate [AI Red Team Methodology](ai-red-team-methodology.md) for LLM/ML attack surface — prompt injection, model extraction, data poisoning, and agent abuse.
+
 ## Method Map
 
 - `1` **Host Discovery**
@@ -3095,6 +3097,7 @@ cd <mounted_share>
 | Resource | Purpose |
 |---|---|
 | [Shodan](https://www.shodan.io/) | Search engine for internet-connected devices, exposed services, and banners |
+| [AI Red Team Methodology](ai-red-team-methodology.md) | AI/ML attack surface — prompt injection, model extraction, data poisoning, agent abuse |
 | [crt.sh](https://crt.sh/) | Certificate Transparency log search for passive subdomain discovery |
 | [GrayHatWarfare](https://grayhatwarfare.com/) | Search engine for exposed AWS, Azure, and GCP cloud storage buckets; sort/filter by file format |
 | [PJPT Notes](https://github.com/G0urmetD/PJPT-Notes) | TCM Security PJPT course notes — AD, pentest methodology, privesc |
