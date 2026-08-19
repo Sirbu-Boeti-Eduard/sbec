@@ -42,3 +42,9 @@ venv/
 AGENTS.md
 config.local.*
 *.local
+
+# Personal opencode skills (local workflow, not shared)
+.opencode/skills/
+
+# Per-target checkpoint notes (local, not shared)
+targets/
