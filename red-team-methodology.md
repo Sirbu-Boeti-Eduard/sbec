@@ -43,6 +43,7 @@
     - `2.3.12` Google Dorking (Google Hacking)
     - `2.3.13` FinalRecon all-in-one web recon
     - `2.3.14` ffuf web fuzzer (vhost / subdomain / directory)
+    - `2.3.15` wpscan WordPress scanner
   - `2.4` **Vulnerability Assessment**
     - `2.4.1` Nmap NSE --script vuln
   - `2.5` **DNS Enumeration**
@@ -1016,6 +1017,41 @@ ffuf -w /usr/share/seclists/Discovery/Web-Content/raft-large-files.txt:FUZZ -u h
 - The bare-IP target means a vhost that doesn't resolve in DNS is still discoverable — access it later with `curl --resolve` (see `2.3.3`) or an `/etc/hosts` entry.
 
 **Reference:** https://github.com/ffuf/ffuf
+
+</details>
+
+#### 2.3.15 wpscan WordPress scanner
+
+```bash
+wpscan -e p --url https://10.129.12.10 --disable-tls-checks --no-banner --plugins-detection aggressive -t 100
+```
+
+<details>
+<summary>Details</summary>
+
+**Description**
+
+- WPScan is a dedicated WordPress scanner: detect core weaknesses plus vulnerable plugins/themes, enumerate usernames (`-e u`), and test weak passwords. Run it whenever fingerprinting (see `2.3.4`) confirms WordPress.
+- Behind Wordfence (see `2.3.9`), noisy plugin brute-forcing gets throttled or blocked — prefer passive detection or an API token.
+- Supply a WPVulnDB API token (`--api-token <TOKEN>`) to cross-reference every detected component against the live vulnerability database and flag known CVEs.
+
+**Parameters**
+
+- `-e p` — Enumerate plugins only. Other values: `vp` = vulnerable plugins only, `ap` = all plugins, `u` = usernames, `tt` = timthumb files (comma-separated combinations allowed, e.g. `-e vp,u`).
+- `--url <URL>` — Target WordPress URL (e.g. `https://10.129.12.10`). WordPress may sit on a non-standard port or subpath.
+- `--disable-tls-checks` — Skip TLS verification; needed for internal targets serving self-signed certificates.
+- `--no-banner` — Suppress the startup banner for quieter output.
+- `--plugins-detection <MODE>` — Plugin detection aggressiveness: `passive` (only parse the homepage — fast, stealthy, may miss plugins), `mixed` (default), or `aggressive` (brute-force common plugin paths — most thorough, noisiest). Use `aggressive` when a full pass is acceptable, e.g. a HTB/pentest target.
+- `-t <THREADS>` — Thread count to speed up enumeration (e.g. `-t 100`).
+- `--api-token <TOKEN>` — WPVulnDB API token for up-to-date vulnerability matching.
+
+**Expected output highlights**
+
+- WordPress core version and whether it is vulnerable/outdated.
+- Installed plugins & themes with their versions and known vulnerabilities (when an API token is set or entries match the bundled database).
+- Enumerated usernames when run with `-e u`.
+
+**Reference:** https://wpscan.com/
 
 </details>
 
