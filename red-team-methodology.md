@@ -3358,6 +3358,13 @@ crackmapexec smb <IP/MASK> -d <DOMAIN> -u <USERNAME> -p <PASSWORD>
 crackmapexec smb <IP/MASK> -d <DOMAIN> -u <USERNAME> -H <NTLM_HASH>
 ```
 
+**Probe SMB access with no credentials (null session or guest):**
+
+```bash
+crackmapexec smb <IP/MASK> -u '' -p '' --shares --users
+crackmapexec smb <IP/MASK> -u guest -p '' --shares --users
+```
+
 <details>
 <summary>Details</summary>
 
@@ -3375,6 +3382,13 @@ crackmapexec smb <IP/MASK> -d <DOMAIN> -u <USERNAME> -H <NTLM_HASH>
 - `-u <USERNAME>` — Username to test.
 - `-p <PASSWORD>` — Cleartext password.
 - `-H <NTLM_HASH>` — NTLM hash for Pass-the-Hash authentication.
+
+**Notes**
+
+- When no credentials are known, try a null session (`-u '' -p ''`) or the built-in `guest` account (`-u guest -p ''`, often enabled with a blank password on misconfigured or older hosts). No `-d` is needed for these.
+- `--shares` lists accessible shares and `--users` enumerates domain users; both flags chain in a single pass and run per-host only where the null/`guest` login succeeds (a `[+]` result also signals the login itself worked).
+- A successful `guest`/null login grants the privileges of the Everyone group and can unlock share/user enumeration (see `3.4.2`, `3.4.3`).
+- Modern Windows blocks anonymous/guest SMB by default unless guest fallback or `Network access: Let Everyone permissions apply to anonymous users` is enabled, so failures here are expected — a success is a strong misconfiguration finding.
 
 </details>
 
