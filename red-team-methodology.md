@@ -153,14 +153,15 @@
     - `8.2.1` Kernel version & exploits
     - `8.2.2` Sudo privileges
     - `8.2.3` SUID / SGID binaries
-    - `8.2.4` Cron & incron jobs
-    - `8.2.5` Exposed credentials
-    - `8.2.6` SSH keys
-    - `8.2.7` Writable PATH directories
-    - `8.2.8` Installed software
-    - `8.2.9` NFS no_root_squash privilege escalation
-    - `8.2.10` Exposed debuggers / Node.js `--inspect` ports
-    - `8.2.11` UNIX socket file-descriptor passing (SCM_RIGHTS)
+    - `8.2.4` Linux capabilities (getcap)
+    - `8.2.5` Cron & incron jobs
+    - `8.2.6` Exposed credentials
+    - `8.2.7` SSH keys
+    - `8.2.8` Writable PATH directories
+    - `8.2.9` Installed software
+    - `8.2.10` NFS no_root_squash privilege escalation
+    - `8.2.11` Exposed debuggers / Node.js `--inspect` ports
+    - `8.2.12` UNIX socket file-descriptor passing (SCM_RIGHTS)
   - `8.3` **Privesc Resources**
   - `8.4` **Windows — Token Escalation (Meterpreter)**
 - `9` **Useful Resources**
@@ -4022,7 +4023,32 @@ find / -perm -2000 -type f 2>/dev/null
 
 </details>
 
-#### 8.2.4 Cron & incron jobs
+#### 8.2.4 Linux capabilities (getcap)
+
+```bash
+getcap -r / 2>/dev/null
+```
+
+<details>
+<summary>Details</summary>
+
+**Description**
+
+- **Linux capabilities** split root's privileges into fine-grained units, letting an ordinary binary perform a privileged action without setting the SUID bit. This is why `sudo -l` and the SUID/SGID lists can be empty while the box is still trivially rootable.
+- `getcap -r /` recursively lists every file that carries capabilities. `-r` = recursive; `2>/dev/null` hides the permission noise.
+- Capability format is `cap_<name>=<flags>`; the flags are `e` (effective), `p` (permitted), `i` (inheritable). Both `e` and `p` set (`=ep`) means the capability is active on execution.
+- Example: `/usr/bin/rev cap_dac_read_search=ep`. `cap_dac_read_search` bypasses file read/execute **DAC** permission checks, so the otherwise-harmless `rev` can read any file regardless of ownership — read root-owned secrets directly:
+  ```bash
+  rev /root/.ssh/id_rsa
+  rev /etc/shadow
+  ```
+- Other dangerous capabilities to look for: `cap_setuid` / `cap_setgid` (become another user), `cap_sys_admin` (mount, namespace escape), `cap_dac_override` (bypass all DAC checks), `cap_net_raw` / `cap_net_admin` (packet capture, network manipulation), `cap_sys_ptrace` (inject into processes).
+- Enumerate available capabilities for the current context with `capsh --print`, and check a single binary with `getcap <binary>`.
+- For a capability-enabled binary that can also run commands or write files, cross-reference [GTFOBins](https://gtfobins.github.io/).
+
+</details>
+
+#### 8.2.5 Cron & incron jobs
 
 ```bash
 cat /etc/crontab
@@ -4043,7 +4069,7 @@ cat /etc/incron.d/*
 
 </details>
 
-#### 8.2.5 Exposed credentials
+#### 8.2.6 Exposed credentials
 
 ```bash
 cat ~/.bash_history
@@ -4061,7 +4087,7 @@ grep -r "password" /var/www/ /etc/ 2>/dev/null
 
 </details>
 
-#### 8.2.6 SSH keys
+#### 8.2.7 SSH keys
 
 **Read — escalation:**
 
@@ -4094,7 +4120,7 @@ echo "<PUBLIC_KEY>" >> ~/.ssh/authorized_keys
 
 </details>
 
-#### 8.2.7 Writable PATH directories
+#### 8.2.8 Writable PATH directories
 
 ```bash
 find / -writable -type d 2>/dev/null
@@ -4110,7 +4136,7 @@ find / -writable -type d 2>/dev/null
 
 </details>
 
-#### 8.2.8 Installed software
+#### 8.2.9 Installed software
 
 ```bash
 dpkg -l 2>/dev/null || rpm -qa
@@ -4133,7 +4159,7 @@ dpkg -l 2>/dev/null || rpm -qa
 
 </details>
 
-#### 8.2.9 NFS no_root_squash privilege escalation
+#### 8.2.10 NFS no_root_squash privilege escalation
 
 **1. Find NFS shares and check for `no_root_squash`:**
 
@@ -4189,7 +4215,7 @@ cd <mounted_share>
 
 </details>
 
-#### 8.2.10 Exposed debuggers / Node.js `--inspect` ports
+#### 8.2.11 Exposed debuggers / Node.js `--inspect` ports
 
 **Find debug ports (run from your low-priv shell):**
 
@@ -4231,7 +4257,7 @@ cat /etc/systemd/system/*.service /lib/systemd/system/*.service 2>/dev/null | gr
 
 </details>
 
-#### 8.2.11 UNIX socket file-descriptor passing (SCM_RIGHTS)
+#### 8.2.12 UNIX socket file-descriptor passing (SCM_RIGHTS)
 
 A privileged daemon may expose a **local UNIX socket** and, on some trigger, **pass open file descriptors (FDs) to whoever connects** via `SCM_RIGHTS` ancillary data. If a service holds a long-lived FD on a sensitive file (config with credentials, secrets), receiving that FD lets you read the file **without any filesystem permission** — `open()` already happened under the privileged account.
 
